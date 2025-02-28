@@ -12,12 +12,42 @@ def AdaptiveDenoise (
     tr2: int = 2,
     sigma: int = 10,
     luma_mask_weaken1: float = 0.75,
-    luma_mask_weaken2: float = 0.75,
+    luma_mask_weaken2: float | None = None,
     chroma_strength: float = 1.0,
     precision: bool = False,
     show_mask: int = 0
 ) -> vs.VideoNode:
-    """ La tu zia """
+    """
+        Denoise adattivo con parametri default per film scan (16mm).
+
+        Vengono passati 3 denoiser, mc_degrain (luma), NLMeans (chroma) e BM3DCuda (luma di nuovo).
+        NLMeans prende come riferimento mc_degrain per eliminare le macchie di sporco / scanner noise dalla clip,
+        mc_degrain ha quindi effetto solo sul luma, che viene successivamente passato a BM3DCuda per un secondo passaggio.
+        Se precision = True, allora BM3DCuda riceve come riferimento un nuovo mc_degrain sulla base della clip già pulita.
+
+        Le lumamask garantiscono il passaggio del denoiser solamente nelle zone del frame che sono più luminose, per non
+        perdere dettaglio nelle zone scure.
+
+        :param clip:                Clip to process.
+        :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
+                                    Reccomended values: 300-800
+        :param tr1:                 Temporal radius for the first mc_degrain and NLMeans. Reccomended values: 2-4
+        :param tr2:                 Temporal radius for BM3DCuda (always) and the second mc_degrain (if precision = True).
+                                    Reccomended values: 2-3
+        :param sigma:               Sigma for BM3DCuda (luma denoise strength). Reccomended values: 3-10
+        :param luma_mask_weaken1:   Modify how much dark spots should be denoised. Lower values means stronger denoise.
+                                    Reccomended values: 0.6-0.9
+        :param luma_mask_weaken2:   Only used if precision = True. Modify how much dark spots should be denoised on BM3DCuda.
+                                    Lower values means stronger denoise. Reccomended values: 0.6-0.9
+        :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Reccomended values: 0.5-2
+        :param precision:           If True a second reference and mask is made for BM3DCuda. Very slow.
+        :param show_mask:           1 = Show the first lumamask, 2 = Show the second lumamask (if precision = True).
+
+        :return:                    Denoised clip or luma_mask if show_mask is 1 or 2.
+        """
+    
+    if precision == True and luma_mask_weaken2 == None:
+        luma_mask_weaken2 = luma_mask_weaken1
 
     core = vs.core
 
