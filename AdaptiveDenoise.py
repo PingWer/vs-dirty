@@ -1,8 +1,8 @@
+import vapoursynth as vs
 from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile
 from vstools import get_y, get_u, get_v
 from vstools.enums import color
 from vsmasktools import adg_mask
-from vstools import vs
 
 
 def AdaptiveDenoise (
@@ -11,12 +11,13 @@ def AdaptiveDenoise (
     tr1: int = 3,
     tr2: int = 2,
     sigma: int = 10,
-    luma_mask_weaken: float = 0.75,
+    luma_mask_weaken1: float = 0.75,
+    luma_mask_weaken2: float = 0.75,
     chroma_strength: float = 1.0,
     precision: bool = False,
-    show_mask: bool = False
-)-> vs.VideoNode:
-    """dawdawda"""
+    show_mask: int = 0
+) -> vs.VideoNode:
+    """ La tu zia """
 
     core = vs.core
 
@@ -26,10 +27,10 @@ def AdaptiveDenoise (
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
 
-        lumamask = adg_mask(clip)
-        darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
+    lumamask = adg_mask(clip)
+    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
 
-    if show_mask :
+    if show_mask == 1:
         return darkenLumaMask
 
     #Denoise
@@ -44,7 +45,9 @@ def AdaptiveDenoise (
     #Luma BM3D
     if precision:
         lumamask = adg_mask(luma)
-        darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
+        darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
+        if show_mask == 2:
+            return darkenLumaMask
         mvtools = MVTools(luma)
         ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr2)
 
