@@ -1,1 +1,1 @@
-# VapourSynth-AdaptiveDenoise-
+# VapourSynth-GeneralAdaptiveDenoise-
