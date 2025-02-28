@@ -1,1 +1,5 @@
 test.vpy
+*.yml
+*.pyc
+.vsjet
+__pycache__
