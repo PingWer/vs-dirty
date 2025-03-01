@@ -97,21 +97,22 @@ def AdaptiveDenoise (
 #TODO
 #Ported from fvsfunc 
 def AutoDeblock(
-    src: vs.VideoNode,
+    clip: vs.VideoNode,
     edgevalue: int = 24,
     db1: int = 1, db2: int = 6, db3: int = 15,
     deblocky: bool = True,
     deblockuv: bool = True,
-    debug: bool = False,
     # redfix: bool = False,
     fastdeblock: bool = False,
     adb1: int = 3, adb2: int = 4, adb3: int = 8,
     adb1d: int = 2, adb2d: int = 7, adb3d: int = 11,
-    planes: bool = None
+    planes: list[int] = None
 ) -> vs.VideoNode:
     """
     Funzione che si spera funzioni, dovrebbe fare deblock MPEG2 ma essendo portata da avisynth di eoni fa dubito lo faccia bene.
     redfix momentaneamente rimosso perchè non so manco cosa fa
+    debug momentaneamente rimosso perchè molto cringe
+
     """
 
     core=vs.core
@@ -120,55 +121,44 @@ def AutoDeblock(
     except ImportError:
         raise ImportError('functools is required')
 
-    if src.format.color_family not in [vs.YUV]:
-        raise TypeError("AutoDeblock: src must be YUV color family!")
+    if clip.format.color_family not in [vs.YUV]:
+        raise TypeError("AutoDeblock: clip must be YUV color family!")
 
-    if src.format.bits_per_sample < 8 or src.format.bits_per_sample > 16 or src.format.sample_type != vs.INTEGER:
-        raise TypeError("AutoDeblock: src must be between 8 and 16 bit integer format")
+    if clip.format.bits_per_sample < 8 or clip.format.bits_per_sample > 16 or clip.format.sample_type != vs.INTEGER:
+        raise TypeError("AutoDeblock: clip must be between 8 and 16 bit integer format")
 
     # Scale values to handle high bit depths
-    shift = src.format.bits_per_sample - 8
+    shift = clip.format.bits_per_sample - 8
     edgevalue = edgevalue << shift
-    maxvalue = (1 << src.format.bits_per_sample) - 1
+    maxvalue = (1 << clip.format.bits_per_sample) - 1
 
-    # Output PlaneStats (0-1) -> 8bit per coerenza con altri parametri
+    # Output PlaneStats (0-1) -> 8bit per coerenza con altri parametri (da migliorare sicuramente)
     def to8bit(
         f: int
     ) -> int:
         return f * 255
-    
-    # 
-    def sub_props(
-        src: vs.VideoNode,
-        f,
-        name: str
-    ) -> vs.VideoNode:
-        OrigDiff_str = str(to8bit(f[0].props.OrigDiff))
-        YNextDiff_str = str(to8bit(f[1].props.YNextDiff))
-        return core.sub.Subtitle(src, name + f"\nOrigDiff: {OrigDiff_str}\nYNextDiff: {YNextDiff_str}")
-
 
     def eval_deblock_strength(
         f, 
-        fastdeblock: bool, 
-        debug: bool, 
-        unfiltered: vs.VideoNode, 
+        fastdeblock: bool,
+        clip: vs.VideoNode, 
         fast: vs.VideoNode, 
         weakdeblock: vs.VideoNode, mediumdeblock: vs.VideoNode, strongdeblock: vs.VideoNode
     ) -> vs.VideoNode:
-        unfiltered = sub_props(unfiltered, f, "unfiltered") if debug else unfiltered
-        out = unfiltered
+        out = clip
+        # Applica o scarta il deblock (sigma 8) in base ai valori
         if fastdeblock:
             if to8bit(f[0].props.OrigDiff) > adb1 and to8bit(f[1].props.YNextDiff) > adb1d:
-                return sub_props(fast, f, "deblock") if debug else fast
+                return fast
             else:
-                return unfiltered
+                return clip
+        # Applica o scarta i vari deblock in base ai valori, dal più debole al più forte
         if to8bit(f[0].props.OrigDiff) > adb1 and to8bit(f[1].props.YNextDiff) > adb1d:
-            out = sub_props(weakdeblock, f, "weakdeblock") if debug else weakdeblock
+            out = weakdeblock
         if to8bit(f[0].props.OrigDiff) > adb2 and to8bit(f[1].props.YNextDiff) > adb2d:
-            out = sub_props(mediumdeblock, f, "mediumdeblock") if debug else mediumdeblock
+            out = mediumdeblock
         if to8bit(f[0].props.OrigDiff) > adb3 and to8bit(f[1].props.YNextDiff) > adb3d:
-            out = sub_props(strongdeblock, f, "strongdeblock") if debug else strongdeblock
+            out = strongdeblock
         return out
 
     # def fix_red(
@@ -185,36 +175,47 @@ def AutoDeblock(
     # if redfix and fastdeblock:
     #     raise ValueError('AutoDeblock: You cannot set both "redfix" and "fastdeblock" to True!')
 
+    # Sostituire con PlanesT
     if planes is None:
         planes = []
         if deblocky: planes.append(0)
         if deblockuv: planes.extend([1,2])
 
-    orig = core.std.Prewitt(src)
+    # orig è una edgemask, che significa orig lo sa solo jesus
+    orig = core.std.Prewitt(clip)
+    # Se x è maggiore o uguale di edgevalue (def:24) allora restituisci maxvalue altrimenti x
+    # È quasi un binarize ma i valori sotto edgevalue rimangono uguali
     orig = core.std.Expr(orig, f"x {edgevalue} >= {maxvalue} x ?")
+    # Usa una modalità di RemoveGrain deprecata, USARE std.Median
     orig_d = orig.rgvs.RemoveGrain(4).rgvs.RemoveGrain(4)
 
-    predeblock = deblock_qed(src.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2))
+    # Passa la clip con un po' meno grana a vsdenoise.deblock_qed
+    predeblock = deblock_qed(clip.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2))
+    # tbsize è la Temporal Dimension, sigma 8 default
     fast = core.dfttest.DFTTest(predeblock, tbsize=1)
 
-    unfiltered = src
+    # Se questi vengono svolti anche se fast = True farebbe molto ridere, sigma regola la forza, ne vengono fatti diversi
+    # Analogamente al nostro approccio su Adaptive Denoise si potrebbe usare un signolo DFT e una mask per la forza
     weakdeblock = core.dfttest.DFTTest(predeblock, sigma=db1, tbsize=1, planes=planes)
     mediumdeblock = core.dfttest.DFTTest(predeblock, sigma=db2, tbsize=1, planes=planes)
     strongdeblock = core.dfttest.DFTTest(predeblock, sigma=db3, tbsize=1, planes=planes)
 
+    # Prende le differenze di statistiche tra edgemask prima e dopo la Median
     difforig = core.std.PlaneStats(orig, orig_d, prop='Orig')
-    diffnext = core.std.PlaneStats(src, src.std.DeleteFrames([0]), prop='YNext')
-    autodeblock = core.std.FrameEval(unfiltered, partial(eval_deblock_strength, fastdeblock=fastdeblock,
-                                     debug=debug, unfiltered=unfiltered, fast=fast, weakdeblock=weakdeblock,
+    # Prende le differenze di statistiche tra la clip e il frame successivo
+    diffnext = core.std.PlaneStats(clip, clip.std.DeleteFrames([0]), prop='YNext')
+    # Frame eval che prende la clip, gli effettua eval_deblock_strength passandogli le statistiche
+    autodeblock = core.std.FrameEval(clip, partial(eval_deblock_strength, fastdeblock=fastdeblock,
+                                     clip=clip, fast=fast, weakdeblock=weakdeblock,
                                      mediumdeblock=mediumdeblock, strongdeblock=strongdeblock),
-                                     prop_src=[difforig,diffnext])
+                                     prop_clip=[difforig,diffnext])
 
     # if redfix:
-    #     src = core.std.PlaneStats(src, prop='Y')
-    #     src_u = core.std.PlaneStats(src, plane=1, prop='U')
-    #     src_v = core.std.PlaneStats(src, plane=2, prop='V')
+    #     clip = core.std.PlaneStats(clip, prop='Y')
+    #     clip_u = core.std.PlaneStats(clip, plane=1, prop='U')
+    #     clip_v = core.std.PlaneStats(clip, plane=2, prop='V')
     #     autodeblock = core.std.FrameEval(unfiltered, partial(fix_red, unfiltered=unfiltered,
-    #                                      autodeblock=autodeblock), prop_src=[src,src_u,src_v])
+    #                                      autodeblock=autodeblock), prop_clip=[clip,clip_u,clip_v])
 
     return autodeblock
 
@@ -372,7 +373,7 @@ def autodb_dpir(
 
     debl = core.std.FrameEval(
         rgb, partial(_eval_db, clip=rgb, db_clips=db_clips, nthrs=nthrs),
-        prop_src=[diffevref, diffnext, diffprev]
+        prop_clip=[diffevref, diffnext, diffprev]
     )
 
     return kernel.resample(debl, format=clip.format, matrix=targ_matrix if not is_rgb else None)
