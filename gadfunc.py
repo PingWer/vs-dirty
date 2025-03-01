@@ -5,13 +5,13 @@ except ImportError:
 
 try:
     from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
-    from vstools import get_y, get_u, get_v
+    from vstools import get_y, get_u, get_v, plane
     from vstools.enums import color
     from vsmasktools import adg_mask
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
-def AdaptiveDenoise (
+def GAD (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr1: int = 3,
@@ -58,14 +58,14 @@ def AdaptiveDenoise (
     core = vs.core
 
     if clip.format.color_family not in {vs.YUV}:
-        raise ValueError('AdaptiveDenoise: only YUV formats are supported')
+        raise ValueError('GAD: only YUV formats are supported')
 
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
 
-    lumamask = adg_mask(clip)
-    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
-
+    luma, prop = plane(clip, 0), 'P'
+    y_inv = luma.std.PlaneStats(prop=prop)
+    darkenLumaMask = core.std.Expr([y_inv], f"x {luma_mask_weaken1} *")
     if show_mask == 1:
         return darkenLumaMask
 
@@ -80,8 +80,9 @@ def AdaptiveDenoise (
 
     #Luma BM3D
     if precision:
-        lumamask = adg_mask(luma)
-        darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
+        luma, prop = plane(clip, 0), 'P'
+        y_inv = luma.std.PlaneStats(prop=prop)
+        darkenLumaMask = core.std.Expr([y_inv], f"x {luma_mask_weaken2} *")
         if show_mask == 2:
             return darkenLumaMask
         mvtools = MVTools(luma)
@@ -93,6 +94,67 @@ def AdaptiveDenoise (
     final = core.std.ShufflePlanes(clips=[lumaFinal, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
 
     return final
+
+def luma_mask (
+        clip: vs.VideoNode,
+        min_value: float = 17500,
+        sthmax: float =1.2,
+        sthmin: float =1.4,
+)-> vs.VideoNode :
+    
+    core = vs.core
+    
+    luma, prop = plane(clip, 0), 'P'
+    y_inv = luma.std.PlaneStats(prop=prop)
+    darkenLumaMask = core.std.Expr(
+        [y_inv],
+        "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sthmax, sthmin)
+    ) 
+
+    return darkenLumaMask
+
+
+#WIP
+def AD (
+    clip: vs.VideoNode,
+    thsad: int = 400,
+    tr: int = 2,
+    sigma: int = 1.2,
+    luma_mask_weaken: float = 0.6,
+    show_mask: bool = False
+) -> vs.VideoNode:
+    
+    core = vs.core
+
+    if clip.format.color_family not in {vs.YUV}:
+        raise ValueError('AD: only YUV formats are supported')
+
+    if clip.format.bits_per_sample != 16:
+        clip = clip.fmtc.bitdepth(bits=16)
+
+    min_value=17500
+    sth =1.2
+    sthmin=1.4
+
+    luma, prop = plane(clip, 0), 'P'
+    y_inv = luma.std.PlaneStats(prop=prop)
+    darkenLumaMask = core.std.Expr(
+        [y_inv],
+        "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sth, sthmin)
+    ) 
+    if show_mask:
+        return darkenLumaMask
+    
+    mvtools = MVTools(luma)
+    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+    ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
+
+    denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr, ref=ref, planes=0, matrix=color.Matrix.BT709, profile=Profile.NORMAL)
+    lumaFinal = core.std.MaskedMerge(luma,denoised, darkenLumaMask, planes=0)
+
+    final = core.std.ShufflePlanes(clips=[lumaFinal, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+
+    return final   
 
 #TODO
 #Ported from fvsfunc 
@@ -161,8 +223,9 @@ def AutoDeblock(
     #                                  clip=clip, deblock=deblock),
     #                                  prop_src=[difforig,diffnext])
     
-    lumamask = adg_mask(clip)
-    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_strength} *")
+    luma, prop = plane(clip, 0), 'P'
+    y_inv = luma.std.Invert().std.PlaneStats(prop=prop)
+    darkenLumaMask = core.std.Expr([y_inv], f"x {luma_mask_strength} *")
     final = core.std.MaskedMerge(deblock, clip, darkenLumaMask, planes=planes)
 
     return final
