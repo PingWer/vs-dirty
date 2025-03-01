@@ -98,7 +98,7 @@ def AdaptiveDenoise (
 #Ported from fvsfunc 
 def AutoDeblock(
     clip: vs.VideoNode,
-    edgevalue: int = 24,
+    # edgevalue: int = 24,
     sigma: int = 15,
     tbsize: int = 1,
     deblocky: bool = True,
@@ -125,9 +125,9 @@ def AutoDeblock(
         raise TypeError("AutoDeblock: clip must be between 8 and 16 bit integer format")
 
     # Scale values to handle high bit depths
-    shift = clip.format.bits_per_sample - 8
-    edgevalue = edgevalue << shift
-    maxvalue = (1 << clip.format.bits_per_sample) - 1
+    # shift = clip.format.bits_per_sample - 8
+    # edgevalue = edgevalue << shift
+    # maxvalue = (1 << clip.format.bits_per_sample) - 1
 
     # Sostituire con PlanesT
     if planes is None:
@@ -136,12 +136,12 @@ def AutoDeblock(
         if deblockuv: planes.extend([1,2])
 
     # orig è una edgemask, che significa orig lo sa solo jesus
-    orig = core.std.Prewitt(clip)
+    # orig = core.std.Prewitt(clip)
     # Se x è maggiore o uguale di edgevalue (def:24) allora restituisci maxvalue altrimenti x
     # È quasi un binarize ma i valori sotto edgevalue rimangono uguali
-    orig = core.std.Expr(orig, f"x {edgevalue} >= {maxvalue} x ?")
+    # orig = core.std.Expr(orig, f"x {edgevalue} >= {maxvalue} x ?")
     # Doppia Median sulla edgemask
-    orig_d = orig.std.Median().std.Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
+    # orig_d = orig.std.Median().std.Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
 
     # Passa la clip con un po' meno grana a vsdenoise.deblock_qed
     predeblock = deblock_qed(clip.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2))
@@ -151,9 +151,9 @@ def AutoDeblock(
     deblock = core.dfttest.DFTTest(predeblock, sigma=sigma, tbsize=tbsize, planes=planes)
 
     # Prende le differenze di statistiche tra edgemask prima e dopo la Median
-    difforig = core.std.PlaneStats(orig, orig_d, prop='Orig')
+    # difforig = core.std.PlaneStats(orig, orig_d, prop='Orig')
     # Prende le differenze di statistiche tra la clip e il frame successivo
-    diffnext = core.std.PlaneStats(clip, clip.std.DeleteFrames([0]), prop='YNext')
+    # diffnext = core.std.PlaneStats(clip, clip.std.DeleteFrames([0]), prop='YNext')
     # Frame eval che prende la clip, gli effettua eval_deblock_strength passandogli le statistiche
 
     # Da implementare per usare le informazioni per regolare la mask
@@ -163,13 +163,6 @@ def AutoDeblock(
     
     lumamask = adg_mask(clip)
     darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_strength} *")
-    luma = get_y(core.std.MaskedMerge(deblock, clip, darkenLumaMask, planes=0))
-
-    if deblockuv:
-        darkenLumaMask.resize.Bicubic(clip.width/2, clip.height/2, filter_param_a=0, filter_param_b=0)
-        uv = core.std.MaskedMerge(deblock, clip, darkenLumaMask, planes=[1,2])
-        final = core.std.ShufflePlanes(clips=[luma, get_u(uv), get_v(uv)], planes=[0,0,0], colorfamily=vs.YUV)
-    else:
-        final = core.std.ShufflePlanes(clips=[luma, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+    final = core.std.MaskedMerge(deblock, clip, darkenLumaMask, planes=planes)
 
     return final
