@@ -7,15 +7,14 @@ try:
     from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT
     from vstools.enums import color
-    from vsmasktools import adg_mask
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
 def luma_mask (
         clip: vs.VideoNode,
         min_value: float = 17500,
-        sthmax: float =1.2,
-        sthmin: float =1.4,
+        sthmax: float = 0.95,
+        sthmin: float = 1.4,
 )-> vs.VideoNode :
     
     core = vs.core
@@ -34,8 +33,8 @@ def GAD (
     thsad: int = 800,
     tr1: int = 3,
     tr2: int = 2,
-    sigma: int = 10,
-    luma_mask_weaken1: float = 0.75,
+    sigma: int = 12,
+    luma_mask_weaken1: float = 0.85,
     luma_mask_weaken2: float | None = None,
     chroma_strength: float = 1.0,
     precision: bool = False,
@@ -154,13 +153,11 @@ def AutoDeblock(
     # edgevalue: int = 24,
     sigma: int = 15,
     tbsize: int = 1,
-    luma_mask_strength: float = 0.8,
+    luma_mask_strength: float = 0.9,
     planes: PlanesT = None
 ) -> vs.VideoNode:
     """
     Funzione che si spera funzioni, dovrebbe fare deblock MPEG2 ma essendo portata da avisynth di eoni fa dubito lo faccia bene.
-    redfix momentaneamente rimosso perchè non so manco cosa fa
-    debug momentaneamente rimosso perchè molto cringe
     """
 
     core=vs.core
@@ -172,8 +169,8 @@ def AutoDeblock(
     if clip.format.color_family not in [vs.YUV]:
         raise TypeError("AutoDeblock: clip must be YUV color family!")
 
-    if clip.format.bits_per_sample < 8 or clip.format.bits_per_sample > 16 or clip.format.sample_type != vs.INTEGER:
-        raise TypeError("AutoDeblock: clip must be between 8 and 16 bit integer format")
+    if clip.format.bits_per_sample != 16:
+        clip = clip.fmtc.bitdepth(bits=16)
 
     # Scale values to handle high bit depths
     # shift = clip.format.bits_per_sample - 8
