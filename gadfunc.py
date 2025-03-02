@@ -5,11 +5,29 @@ except ImportError:
 
 try:
     from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
-    from vstools import get_y, get_u, get_v, plane
+    from vstools import get_y, get_u, get_v, PlanesT
     from vstools.enums import color
     from vsmasktools import adg_mask
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+
+def luma_mask (
+        clip: vs.VideoNode,
+        min_value: float = 17500,
+        sthmax: float =1.2,
+        sthmin: float =1.4,
+)-> vs.VideoNode :
+    
+    core = vs.core
+    
+    luma = get_y(clip)
+    lumamask = core.std.Expr(
+        [luma],
+        "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sthmax, sthmin)
+    )
+    lumamask = lumamask.std.Invert()
+
+    return lumamask
 
 def GAD (
     clip: vs.VideoNode,
@@ -63,9 +81,8 @@ def GAD (
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
 
-    luma, prop = plane(clip, 0), 'P'
-    y_inv = luma.std.PlaneStats(prop=prop)
-    darkenLumaMask = core.std.Expr([y_inv], f"x {luma_mask_weaken1} *")
+    lumamask = luma_mask(clip)
+    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
     if show_mask == 1:
         return darkenLumaMask
 
@@ -80,9 +97,8 @@ def GAD (
 
     #Luma BM3D
     if precision:
-        luma, prop = plane(clip, 0), 'P'
-        y_inv = luma.std.PlaneStats(prop=prop)
-        darkenLumaMask = core.std.Expr([y_inv], f"x {luma_mask_weaken2} *")
+        lumamask = luma_mask(luma)
+        darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
         if show_mask == 2:
             return darkenLumaMask
         mvtools = MVTools(luma)
@@ -94,25 +110,6 @@ def GAD (
     final = core.std.ShufflePlanes(clips=[lumaFinal, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
 
     return final
-
-def luma_mask (
-        clip: vs.VideoNode,
-        min_value: float = 17500,
-        sthmax: float =1.2,
-        sthmin: float =1.4,
-)-> vs.VideoNode :
-    
-    core = vs.core
-    
-    luma, prop = plane(clip, 0), 'P'
-    y_inv = luma.std.PlaneStats(prop=prop)
-    darkenLumaMask = core.std.Expr(
-        [y_inv],
-        "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sthmax, sthmin)
-    ) 
-
-    return darkenLumaMask
-
 
 #WIP
 def AD (
@@ -131,17 +128,11 @@ def AD (
 
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
+    
+    luma = get_y(clip)
 
-    min_value=17500
-    sth =1.2
-    sthmin=1.4
-
-    luma, prop = plane(clip, 0), 'P'
-    y_inv = luma.std.PlaneStats(prop=prop)
-    darkenLumaMask = core.std.Expr(
-        [y_inv],
-        "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sth, sthmin)
-    ) 
+    lumamask = luma_mask(clip)
+    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
     if show_mask:
         return darkenLumaMask
     
@@ -150,7 +141,7 @@ def AD (
     ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
 
     denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr, ref=ref, planes=0, matrix=color.Matrix.BT709, profile=Profile.NORMAL)
-    lumaFinal = core.std.MaskedMerge(luma,denoised, darkenLumaMask, planes=0)
+    lumaFinal = core.std.MaskedMerge(denoised, luma, darkenLumaMask, planes=0)
 
     final = core.std.ShufflePlanes(clips=[lumaFinal, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
 
@@ -163,10 +154,8 @@ def AutoDeblock(
     # edgevalue: int = 24,
     sigma: int = 15,
     tbsize: int = 1,
-    deblocky: bool = True,
-    deblockuv: bool = True,
     luma_mask_strength: float = 0.8,
-    planes: list[int] = None
+    planes: PlanesT = None
 ) -> vs.VideoNode:
     """
     Funzione che si spera funzioni, dovrebbe fare deblock MPEG2 ma essendo portata da avisynth di eoni fa dubito lo faccia bene.
@@ -191,12 +180,6 @@ def AutoDeblock(
     # edgevalue = edgevalue << shift
     # maxvalue = (1 << clip.format.bits_per_sample) - 1
 
-    # Sostituire con PlanesT
-    if planes is None:
-        planes = []
-        if deblocky: planes.append(0)
-        if deblockuv: planes.extend([1,2])
-
     # orig è una edgemask, che significa orig lo sa solo jesus
     # orig = core.std.Prewitt(clip)
     # Se x è maggiore o uguale di edgevalue (def:24) allora restituisci maxvalue altrimenti x
@@ -206,7 +189,7 @@ def AutoDeblock(
     # orig_d = orig.std.Median().std.Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
 
     # Passa la clip con un po' meno grana a vsdenoise.deblock_qed
-    predeblock = deblock_qed(clip.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2))
+    predeblock = deblock_qed(clip.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2), planes=planes)
 
     # Se questi vengono svolti anche se fast = True farebbe molto ridere, sigma regola la forza, ne vengono fatti diversi
     # Analogamente al nostro approccio su Adaptive Denoise si potrebbe usare un signolo DFT e una mask per la forza
@@ -223,9 +206,8 @@ def AutoDeblock(
     #                                  clip=clip, deblock=deblock),
     #                                  prop_src=[difforig,diffnext])
     
-    luma, prop = plane(clip, 0), 'P'
-    y_inv = luma.std.Invert().std.PlaneStats(prop=prop)
-    darkenLumaMask = core.std.Expr([y_inv], f"x {luma_mask_strength} *")
+    lumamask = luma_mask(clip)
+    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_strength} *")
     final = core.std.MaskedMerge(deblock, clip, darkenLumaMask, planes=planes)
 
     return final
