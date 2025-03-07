@@ -28,6 +28,70 @@ def luma_mask (
 
     return lumamask
 
+def luma_mask_man (
+        clip: vs.VideoNode,
+        t: float = 0.3,
+        s: float = 5,
+        a: float = 0.3,
+)-> vs.VideoNode :
+    
+    core = vs.core
+    
+    luma = get_y(clip)
+    f=1/3
+
+    maxvalue = (1 << clip.format.bits_per_sample) - 1
+    normx = f"x 2 * {maxvalue} / "
+
+    lumamask = core.std.Expr(
+        [luma],
+        f"x "                  # Mettiamo x sullo stack per la moltiplicazione finale
+        f"{normx} {t} < "            # x < b ?
+        # - Ramo TRUE → f(x):
+        f"{normx} {t} - {normx} {t} - 2 pow {s} * {a} + {f} pow / 1 + "
+        # - Ramo FALSE → h(x):
+        f"{normx} {t} - {normx} {t} - 2 pow {s} * 5 * {a} + {f} pow / 1 + "
+        # - Operatore ternario:
+        f"? "
+        # - moltiplica per x:
+        f"*"
+    )
+
+    lumamask = lumamask.std.Invert()
+
+    return lumamask
+
+def luma_mask_ping (
+        clip: vs.VideoNode,
+        a: float = 1.2,
+        b: float = 40000,
+)-> vs.VideoNode :
+    
+    import math
+
+    core = vs.core
+
+    clip = clip.fmtc.bitdepth(bits=16)
+    c = (math.exp(a - 1) + a * math.exp(a)) / (math.exp(a) - 1)
+
+    expr2 = (
+        f"x "                  # Mettiamo x sullo stack per la moltiplicazione finale
+        f"x {b} < "            # x < b ?
+        # - Ramo TRUE → f(x):
+        f"x {b} 1 + - exp {a} + "
+        # - Ramo FALSE → h(x):
+        f"{c} {c} x {b} 1 - - log 0.1 * exp {a} + / - "
+        # - Operatore ternario:
+        f"? "
+        # - moltiplica per x:
+        f"*"
+    )
+
+    cc = core.std.Expr(get_y(clip), expr2)
+    cc = core.std.Invert(cc)
+
+    return cc
+
 def gad (
     clip: vs.VideoNode,
     thsad: int = 800,
@@ -38,6 +102,7 @@ def gad (
     luma_mask_weaken2: float | None = None,
     chroma_strength: float = 1.0,
     precision: bool = False,
+    mask_type: int = 0,
     show_mask: int = 0
 ) -> vs.VideoNode:
     """
@@ -80,7 +145,13 @@ def gad (
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
 
-    lumamask = luma_mask(clip)
+    if (mask_type == 0):
+        lumamask = luma_mask(clip)
+    elif (mask_type == 1):
+        lumamask = luma_mask_man(clip)
+    else:
+        lumamask = luma_mask_ping(clip)
+    
     darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
     if show_mask == 1:
         return darken_luma_mask
@@ -96,7 +167,12 @@ def gad (
 
     #Luma BM3D
     if precision:
-        lumamask = luma_mask(luma)
+        if (mask_type == 0):
+            lumamask = luma_mask(clip)
+        elif (mask_type == 1):
+            lumamask = luma_mask_man(clip)
+        else:
+            lumamask = luma_mask_ping(clip)
         darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
         if show_mask == 2:
             return darken_luma_mask
@@ -155,6 +231,7 @@ def auto_deblock(
     sigma: int = 15,
     tbsize: int = 1,
     luma_mask_strength: float = 0.9,
+    mask_type: int = 0,
     planes: PlanesT = None
 ) -> vs.VideoNode:
     """
@@ -204,7 +281,12 @@ def auto_deblock(
     #                                  clip=clip, deblock=deblock),
     #                                  prop_src=[difforig,diffnext])
     
-    lumamask = luma_mask(clip)
+    if (mask_type == 0):
+        lumamask = luma_mask(clip)
+    elif (mask_type == 1):
+        lumamask = luma_mask_man(clip)
+    else:
+        lumamask = luma_mask_ping(clip)
     darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_strength} *")
     final = core.std.MaskedMerge(deblock, clip, darken_luma_mask, planes=planes)
 
