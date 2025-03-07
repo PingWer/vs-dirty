@@ -28,7 +28,7 @@ def luma_mask (
 
     return lumamask
 
-def GAD (
+def gad (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr1: int = 3,
@@ -81,15 +81,15 @@ def GAD (
         clip = clip.fmtc.bitdepth(bits=16)
 
     lumamask = luma_mask(clip)
-    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
+    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
     if show_mask == 1:
-        return darkenLumaMask
+        return darken_luma_mask
 
     #Denoise
     mvtools = MVTools(clip)
     vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr1)
-    luma = get_y(core.std.MaskedMerge(ref, clip, darkenLumaMask, planes=0))
+    luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
 
     #Chroma NLMeans
     chroma_denoised = nl_means(clip, tr=tr1, strength=chroma_strength, ref=ref, planes=[1,2])
@@ -97,21 +97,22 @@ def GAD (
     #Luma BM3D
     if precision:
         lumamask = luma_mask(luma)
-        darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
+        darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
         if show_mask == 2:
-            return darkenLumaMask
+            return darken_luma_mask
         mvtools = MVTools(luma)
+        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
         ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr2)
 
     denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr2, ref=ref, planes=0, matrix=color.Matrix.BT709, profile=Profile.HIGH)
-    lumaFinal = core.std.MaskedMerge(denoised, luma, darkenLumaMask, planes=0)
+    luma_final = core.std.MaskedMerge(denoised, luma, darken_luma_mask, planes=0)
 
-    final = core.std.ShufflePlanes(clips=[lumaFinal, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
+    final = core.std.ShufflePlanes(clips=[luma_final, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
 
     return final
 
 #WIP
-def AD (
+def ad (
     clip: vs.VideoNode,
     thsad: int = 400,
     tr: int = 2,
@@ -131,24 +132,24 @@ def AD (
     luma = get_y(clip)
 
     lumamask = luma_mask(clip)
-    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
+    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
     if show_mask:
-        return darkenLumaMask
+        return darken_luma_mask
     
     mvtools = MVTools(luma)
     vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
     ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
 
     denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr, ref=ref, planes=0, matrix=color.Matrix.BT709, profile=Profile.NORMAL)
-    lumaFinal = core.std.MaskedMerge(denoised, luma, darkenLumaMask, planes=0)
+    luma_final = core.std.MaskedMerge(denoised, luma, darken_luma_mask, planes=0)
 
-    final = core.std.ShufflePlanes(clips=[lumaFinal, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+    final = core.std.ShufflePlanes(clips=[luma_final, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
 
     return final   
 
-#TODO
+# TODO
 #Ported from fvsfunc 
-def AutoDeblock(
+def auto_deblock(
     clip: vs.VideoNode,
     # edgevalue: int = 24,
     sigma: int = 15,
@@ -204,7 +205,7 @@ def AutoDeblock(
     #                                  prop_src=[difforig,diffnext])
     
     lumamask = luma_mask(clip)
-    darkenLumaMask = core.std.Expr([lumamask], f"x {luma_mask_strength} *")
-    final = core.std.MaskedMerge(deblock, clip, darkenLumaMask, planes=planes)
+    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_strength} *")
+    final = core.std.MaskedMerge(deblock, clip, darken_luma_mask, planes=planes)
 
     return final
