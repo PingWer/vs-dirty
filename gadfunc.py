@@ -34,7 +34,9 @@ def luma_mask_man (
         s: float = 5,
         a: float = 0.3,
 )-> vs.VideoNode :
-    
+    """
+    Curve graph https://www.geogebra.org/calculator/cqnfnqyk
+    """
     core = vs.core
     
     luma = get_y(clip)
@@ -63,24 +65,40 @@ def luma_mask_man (
 
 def luma_mask_ping (
         clip: vs.VideoNode,
-        a: float = 1.2,
-        b: float = 40000,
+        low_amp: float = 1,
+        thr: float = 30000,
+        high_amp: float = 0.2,
 )-> vs.VideoNode :
-    
+    """
+    Custom luma mask that uses a different approach to calculate the mask (Made By PingWer).
+    This mask is sensitive to the brightness of the image, producing a constant dark mask for bright areas, 
+    a constant white mask for very dark areas, and a smooth transition between these extremes based on brightness levels.
+
+    Curve graph https://www.geogebra.org/calculator/fxbrx4s4
+
+
+    :param clip:            Clip to process.
+    :param low_amp:         General preamplification value, but more sensitive for values lower than thr.
+    :param thr:             Threshold that determines what is considered light and what is dark.
+    :param high_ampc:       Amplification value for values higher than b. Recommended values range from 0.05 to 0.3.
+    :return:                Luma mask.
+    """
     import math
 
     core = vs.core
 
-    clip = clip.fmtc.bitdepth(bits=16)
-    c = (math.exp(a - 1) + a * math.exp(a)) / (math.exp(a) - 1)
+    if clip.format.bits_per_sample != 16:
+        clip = clip.fmtc.bitdepth(bits=16)
+
+    high_amp = (math.exp(low_amp - 1) + low_amp * math.exp(low_amp)) / (math.exp(low_amp) - 1)
 
     expr2 = (
         f"x "                  # Mettiamo x sullo stack per la moltiplicazione finale
-        f"x {b} < "            # x < b ?
+        f"x {thr} < "            # x < b ?
         # - Ramo TRUE → f(x):
-        f"x {b} 1 + - exp {a} + "
+        f"x {thr} 1 + - exp {low_amp} + "
         # - Ramo FALSE → h(x):
-        f"{c} {c} x {b} 1 - - log 0.1 * exp {a} + / - "
+        f"{high_amp} {high_amp} x {thr} 1 - - log {high_amp} * exp {low_amp} + / - "
         # - Operatore ternario:
         f"? "
         # - moltiplica per x:
@@ -92,7 +110,7 @@ def luma_mask_ping (
 
     return cc
 
-def gad (
+def IntesiveAdaptiveDenoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr1: int = 3,
@@ -102,21 +120,21 @@ def gad (
     luma_mask_weaken2: float | None = None,
     chroma_strength: float = 1.0,
     precision: bool = False,
-    mask_type: int = 0,
+    mask_type: int = 2,
     show_mask: int = 0
 ) -> vs.VideoNode:
     """
-    Adaptive denoise with default parameters for film scans (16mm).
+    Intensive Adaptive Denoise with default parameters for film scans (16mm).
 
     Three denoisers are applied: mc_degrain (luma), NLMeans (chroma), and BM3DCuda (luma).
     NLMeans uses mc_degrain as reference to remove dirt spots and scanner noise from the clip,
     while mc_degrain affects only the luma, which is then passed to BM3DCuda for a second denoising pass.
     If precision = True, BM3DCuda receives a new mc_degrain reference based on the already cleaned clip (slower).
 
-    Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions.
+    Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
     Note: Luma masks are more sensitive to variations than the sigma value for the final result.
 
-    :param clip:                Clip to process.
+    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with fmtc).
     :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
                                 Recommended values: 300-800
     :param tr1:                 Temporal radius for the first mc_degrain and NLMeans. Recommended values: 2-4
@@ -129,9 +147,10 @@ def gad (
                                 Lower values mean stronger denoise. Recommended values: 0.6-0.9
     :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Recommended values: 0.5-2
     :param precision:           If True, a second reference and mask are created for BM3DCuda. Very slow.
+    :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
     :param show_mask:           1 = Show the first luma mask, 2 = Show the second luma mask (if precision = True).
 
-    :return:                    Denoised clip or luma_mask if show_mask is 1 or 2.
+    :return:                    16bit denoised clip or luma_mask if show_mask is 1 or 2.
     """
     
     if precision == True and luma_mask_weaken2 == None:
@@ -168,11 +187,11 @@ def gad (
     #Luma BM3D
     if precision:
         if (mask_type == 0):
-            lumamask = luma_mask(clip)
+            lumamask = luma_mask(luma)
         elif (mask_type == 1):
-            lumamask = luma_mask_man(clip)
+            lumamask = luma_mask_man(luma)
         else:
-            lumamask = luma_mask_ping(clip)
+            lumamask = luma_mask_ping(luma)
         darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
         if show_mask == 2:
             return darken_luma_mask
@@ -187,36 +206,92 @@ def gad (
 
     return final
 
-#WIP
-def ad (
+def AdaptiveDenoiser (
     clip: vs.VideoNode,
-    thsad: int = 400,
-    tr: int = 2,
-    sigma: int = 1.2,
-    luma_mask_weaken: float = 0.6,
-    show_mask: bool = False
-) -> vs.VideoNode:
+    thsad: int = 800,
+    tr1: int = 3,
+    tr2: int = 2,
+    sigma: int = 12,
+    luma_mask_weaken1: float = 0.85,
+    luma_mask_weaken2: float | None = None,
+    precision: bool = False,
+    mask_type: int = 2,
+    show_mask: int = 0
+) -> vs.VideoNode: 
+    """
+    Adaptive Denoise with default parameters for film scans (16mm).
+
+    Two denoisers are applied: mc_degrain (luma) and BM3DCuda (luma).
+    Mc_degrain affects only the luma and is used as reference for BM3DCuda for a second denoising pass.
+    If precision = True, BM3DCuda receives a new mc_degrain reference based on the already cleaned clip (slower).
+
+    Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
+    Note: Luma masks are more sensitive to variations than the sigma value for the final result.
+
+    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with fmtc).
+    :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
+                                Recommended values: 300-800
+    :param tr1:                 Temporal radius for the first mc_degrain and NLMeans. Recommended values: 2-4
+    :param tr2:                 Temporal radius for BM3DCuda (always) and the second mc_degrain (if precision = True).
+                                Recommended values: 2-3
+    :param sigma:               Sigma for BM3DCuda (luma denoise strength). Recommended values: 3-10
+    :param luma_mask_weaken1:   Controls how much dark spots should be denoised. Lower values mean stronger denoise.
+                                Recommended values: 0.6-0.9
+    :param luma_mask_weaken2:   Only used if precision = True. Controls how much dark spots should be denoised on BM3DCuda.
+                                Lower values mean stronger denoise. Recommended values: 0.6-0.9
+    :param precision:           If True, a second reference and mask are created for BM3DCuda. Very slow.
+    :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the second luma mask (if precision = True).
+
+    :return:                    16bit denoised clip or luma_mask if show_mask is 1 or 2.
+    """
     
     core = vs.core
 
+    if precision == True and luma_mask_weaken2 == None:
+        luma_mask_weaken2 = luma_mask_weaken1
+
+    core = vs.core
+
     if clip.format.color_family not in {vs.YUV}:
-        raise ValueError('AD: only YUV formats are supported')
+        raise ValueError('GAD: only YUV formats are supported')
 
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
-    
-    luma = get_y(clip)
 
-    lumamask = luma_mask(clip)
-    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
-    if show_mask:
+    if (mask_type == 0):
+        lumamask = luma_mask(clip)
+    elif (mask_type == 1):
+        lumamask = luma_mask_man(clip)
+    else:
+        lumamask = luma_mask_ping(clip)
+    
+    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
+    if show_mask == 1:
         return darken_luma_mask
-    
-    mvtools = MVTools(luma)
-    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
-    ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
 
-    denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr, ref=ref, planes=0, matrix=color.Matrix.BT709, profile=Profile.NORMAL)
+    #Denoise
+    mvtools = MVTools(clip)
+    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+    ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr1)
+    luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
+
+    #Luma BM3D
+    if precision:
+        if (mask_type == 0):
+            lumamask = luma_mask(luma)
+        elif (mask_type == 1):
+            lumamask = luma_mask_man(luma)
+        else:
+            lumamask = luma_mask_ping(luma)
+        darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
+        if show_mask == 2:
+            return darken_luma_mask
+        mvtools = MVTools(luma)
+        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+        ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr2)
+
+    denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr2, ref=ref, planes=0, matrix=color.Matrix.BT709, profile=Profile.HIGH)
     luma_final = core.std.MaskedMerge(denoised, luma, darken_luma_mask, planes=0)
 
     final = core.std.ShufflePlanes(clips=[luma_final, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
