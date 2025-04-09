@@ -59,6 +59,8 @@ def luma_mask_man (
         f"*"
     )
 
+    lumamask = lumamask.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2)
+
     lumamask = lumamask.std.Invert()
 
     return lumamask
@@ -67,7 +69,7 @@ def luma_mask_ping (
         clip: vs.VideoNode,
         low_amp: float = 1,
         thr: float = 30000,
-        high_amp: float = 0.2,
+        # high_amp: float = 0.2,
 )-> vs.VideoNode :
     """
     Custom luma mask that uses a different approach to calculate the mask (Made By PingWer).
@@ -106,6 +108,7 @@ def luma_mask_ping (
     )
 
     cc = core.std.Expr(get_y(clip), expr2)
+    cc = cc.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2)
     cc = core.std.Invert(cc)
 
     return cc
@@ -177,7 +180,7 @@ def IntesiveAdaptiveDenoiser (
 
     #Denoise
     mvtools = MVTools(clip)
-    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr1)
     luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
 
@@ -366,3 +369,20 @@ def auto_deblock(
     final = core.std.MaskedMerge(deblock, clip, darken_luma_mask, planes=planes)
 
     return final
+
+def increase_dynamic(
+    clip: vs.VideoNode,
+    t: float = 0.7,
+    s: float = 50,
+    a: float = 300,
+)-> vs.VideoNode:
+    
+    core=vs.core
+
+    lumamask = luma_mask_man(clip, t=t, s=s, a=a)
+    lumamask = lumamask.std.Invert()
+    u = get_u(clip)
+    v = get_v(clip)
+    lumamask = core.std.ShufflePlanes(clips=[lumamask, u, v], planes=[0,0,0], colorfamily=vs.YUV)
+    clip = core.std.Merge(clip, lumamask, weight=0.1)
+    return clip
