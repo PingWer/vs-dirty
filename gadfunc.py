@@ -59,8 +59,6 @@ def luma_mask_man (
         f"*"
     )
 
-    lumamask = lumamask.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2)
-
     lumamask = lumamask.std.Invert()
 
     return lumamask
@@ -108,7 +106,7 @@ def luma_mask_ping (
     )
 
     cc = core.std.Expr(get_y(clip), expr2)
-    cc = cc.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2)
+
     cc = core.std.Invert(cc)
 
     return cc
@@ -386,3 +384,77 @@ def increase_dynamic(
     lumamask = core.std.ShufflePlanes(clips=[lumamask, u, v], planes=[0,0,0], colorfamily=vs.YUV)
     clip = core.std.Merge(clip, lumamask, weight=0.1)
     return clip
+
+def deblock(
+    clip: vs.VideoNode,
+    thrvalue: int = 26,
+    show_mask: bool = False
+)-> vs.VideoNode:
+    """
+    Curatemi vi prego, sono una funzione malata
+    """
+        
+    core=vs.core
+
+    maxvalue = (1 << clip.format.bits_per_sample) - 1
+    thr = (thrvalue / 255) * maxvalue
+
+    y, u, v = clip.std.SplitPlanes()
+    ymask = luma_mask_man(y, t=1, a=20, s=20)
+    umask = luma_mask_man(u, t=1, a=20, s=20)
+    vmask = luma_mask_man(v, t=1, a=20, s=20)
+
+    lumashift_hor = ymask.resize.Point(1440,1080, src_left=1)
+    lumashift_ver = ymask.resize.Point(1440,1080, src_top=1)
+    lumashift_hor2 = ymask.resize.Point(1440,1080, src_left=2)
+    lumashift_ver2 = ymask.resize.Point(1440,1080, src_top=2)
+    lumashift_hor11 = ymask.resize.Point(1440,1080, src_left=-1)
+    lumashift_ver11 = ymask.resize.Point(1440,1080, src_top=-1)
+    lumashift_hor22 = ymask.resize.Point(1440,1080, src_left=-2)
+    lumashift_ver22 = ymask.resize.Point(1440,1080, src_top=-2)
+
+    ushift_hor = umask.resize.Point(720,540, src_left=1)
+    ushift_ver = umask.resize.Point(720,540, src_top=1)
+    ushift_hor2 = umask.resize.Point(720,540, src_left=2)
+    ushift_ver2 = umask.resize.Point(720,540, src_top=2)
+    ushift_hor11 = umask.resize.Point(720,540, src_left=-1)
+    ushift_ver11 = umask.resize.Point(720,540, src_top=-1)
+    ushift_hor22 = umask.resize.Point(720,540, src_left=-2)
+    ushift_ver22 = umask.resize.Point(720,540, src_top=-2)
+
+    vshift_hor = vmask.resize.Point(720,540, src_left=1)
+    vshift_ver = vmask.resize.Point(720,540, src_top=1)
+    vshift_hor2 = vmask.resize.Point(720,540, src_left=2)
+    vshift_ver2 = vmask.resize.Point(720,540, src_top=2)
+    vshift_hor11 = vmask.resize.Point(720,540, src_left=-1)
+    vshift_ver11 = vmask.resize.Point(720,540, src_top=-1)
+    vshift_hor22 = vmask.resize.Point(720,540, src_left=-2)
+    vshift_ver22 = vmask.resize.Point(720,540, src_top=-2)
+
+    ymask1 = core.std.Expr([ymask, lumashift_hor, lumashift_hor2, lumashift_hor11, lumashift_hor22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+    ymask2 = core.std.Expr([ymask, lumashift_ver, lumashift_ver2, lumashift_ver11, lumashift_ver22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+
+    umask1 = core.std.Expr([umask, ushift_hor, ushift_hor2, ushift_hor11, ushift_hor22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+    umask2 = core.std.Expr([umask, ushift_ver, ushift_ver2, ushift_ver11, ushift_ver22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+
+    vmask1 = core.std.Expr([vmask, vshift_hor, vshift_hor2, vshift_hor11, vshift_hor22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+    vmask2 = core.std.Expr([vmask, vshift_ver, vshift_ver2, vshift_ver11, vshift_ver22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+
+
+    ymask = core.std.Expr([ymask1, ymask2], f"x y max")
+    umask = core.std.Expr([umask1, umask2], f"x y max")
+    vmask = core.std.Expr([vmask1, vmask2], f"x y max")
+
+    y1 = deblock_qed(y, quant_edge=30, quant_inner=32)
+    y1 = core.dfttest.DFTTest(y1, sigma=25, tbsize=1, sosize=8)
+    y1 = core.std.MaskedMerge(y, y1, ymask)
+    u1 = deblock_qed(u, quant_edge=30, quant_inner=32)
+    u1 = core.dfttest.DFTTest(u1, sigma=25, tbsize=1, sosize=8)
+    u1 = core.std.MaskedMerge(u, u1, umask)
+    v1 = deblock_qed(v, quant_edge=30, quant_inner=32)
+    v1 = core.dfttest.DFTTest(v1, sigma=25, tbsize=1, sosize=8)
+    v1 = core.std.MaskedMerge(v, v1, vmask)
+
+    if show_mask is True:
+        return core.std.ShufflePlanes(clips=[ymask, umask, vmask], planes=[0,0,0], colorfamily=vs.YUV)
+    return core.std.ShufflePlanes(clips=[y1, u1, v1], planes=[0,0,0], colorfamily=vs.YUV)  
