@@ -391,7 +391,7 @@ def deblock(
     show_mask: bool = False
 )-> vs.VideoNode:
     """
-    Curatemi vi prego, sono una funzione malata
+    Sono stata curata
     """
         
     core=vs.core
@@ -404,48 +404,14 @@ def deblock(
     umask = luma_mask_man(u, t=1, a=20, s=20)
     vmask = luma_mask_man(v, t=1, a=20, s=20)
 
-    lumawidth = y.width
-    lumaheight = y.height
-    lumashift_hor = ymask.resize.Point(lumawidth, lumaheight, src_left=1)
-    lumashift_ver = ymask.resize.Point(lumawidth, lumaheight, src_top=1)
-    lumashift_hor2 = ymask.resize.Point(lumawidth, lumaheight, src_left=2)
-    lumashift_ver2 = ymask.resize.Point(lumawidth, lumaheight, src_top=2)
-    lumashift_hor11 = ymask.resize.Point(lumawidth, lumaheight, src_left=-1)
-    lumashift_ver11 = ymask.resize.Point(lumawidth, lumaheight, src_top=-1)
-    lumashift_hor22 = ymask.resize.Point(lumawidth, lumaheight, src_left=-2)
-    lumashift_ver22 = ymask.resize.Point(lumawidth, lumaheight, src_top=-2)
+    ymask1 = core.akarin.Expr([ymask], f"x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + +").std.Binarize(thr)
+    ymask2 = core.akarin.Expr([ymask], f"x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + +").std.Binarize(thr)
 
-    uwidth = u.width
-    uheight = u.height
-    ushift_hor = umask.resize.Point(uwidth, uheight, src_left=1)
-    ushift_ver = umask.resize.Point(uwidth, uheight, src_top=1)
-    ushift_hor2 = umask.resize.Point(uwidth, uheight, src_left=2)
-    ushift_ver2 = umask.resize.Point(uwidth, uheight, src_top=2)
-    ushift_hor11 = umask.resize.Point(uwidth, uheight, src_left=-1)
-    ushift_ver11 = umask.resize.Point(uwidth, uheight, src_top=-1)
-    ushift_hor22 = umask.resize.Point(uwidth, uheight, src_left=-2)
-    ushift_ver22 = umask.resize.Point(uwidth, uheight, src_top=-2)
+    umask1 = core.akarin.Expr([umask], f"x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + +").std.Binarize(thr)
+    umask2 = core.akarin.Expr([umask], f"x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + +").std.Binarize(thr)
 
-    vwidth = v.width
-    vheight = v.height
-    vshift_hor = vmask.resize.Point(vwidth, vheight, src_left=1)
-    vshift_ver = vmask.resize.Point(vwidth, vheight, src_top=1)
-    vshift_hor2 = vmask.resize.Point(vwidth, vheight, src_left=2)
-    vshift_ver2 = vmask.resize.Point(vwidth, vheight, src_top=2)
-    vshift_hor11 = vmask.resize.Point(vwidth, vheight, src_left=-1)
-    vshift_ver11 = vmask.resize.Point(vwidth, vheight, src_top=-1)
-    vshift_hor22 = vmask.resize.Point(vwidth, vheight, src_left=-2)
-    vshift_ver22 = vmask.resize.Point(vwidth, vheight, src_top=-2)
-
-    ymask1 = core.std.Expr([ymask, lumashift_hor, lumashift_hor2, lumashift_hor11, lumashift_hor22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
-    ymask2 = core.std.Expr([ymask, lumashift_ver, lumashift_ver2, lumashift_ver11, lumashift_ver22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
-
-    umask1 = core.std.Expr([umask, ushift_hor, ushift_hor2, ushift_hor11, ushift_hor22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
-    umask2 = core.std.Expr([umask, ushift_ver, ushift_ver2, ushift_ver11, ushift_ver22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
-
-    vmask1 = core.std.Expr([vmask, vshift_hor, vshift_hor2, vshift_hor11, vshift_hor22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
-    vmask2 = core.std.Expr([vmask, vshift_ver, vshift_ver2, vshift_ver11, vshift_ver22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
-
+    vmask1 = core.akarin.Expr([vmask], f"x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + +").std.Binarize(thr)
+    vmask2 = core.akarin.Expr([vmask], f"x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + +").std.Binarize(thr)
 
     ymask = core.std.Expr([ymask1, ymask2], f"x y max")
     umask = core.std.Expr([umask1, umask2], f"x y max")
