@@ -387,7 +387,7 @@ def increase_dynamic(
 
 def deblock(
     clip: vs.VideoNode,
-    thrvalue: int = 26,
+    thrvalue: int = 22,
     show_mask: bool = False
 )-> vs.VideoNode:
     """
@@ -431,14 +431,14 @@ def deblock(
     vshift_hor22 = vmask.resize.Point(720,540, src_left=-2)
     vshift_ver22 = vmask.resize.Point(720,540, src_top=-2)
 
-    ymask1 = core.std.Expr([ymask, lumashift_hor, lumashift_hor2, lumashift_hor11, lumashift_hor22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
-    ymask2 = core.std.Expr([ymask, lumashift_ver, lumashift_ver2, lumashift_ver11, lumashift_ver22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+    ymask1 = core.std.Expr([ymask, lumashift_hor, lumashift_hor2, lumashift_hor11, lumashift_hor22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
+    ymask2 = core.std.Expr([ymask, lumashift_ver, lumashift_ver2, lumashift_ver11, lumashift_ver22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
 
-    umask1 = core.std.Expr([umask, ushift_hor, ushift_hor2, ushift_hor11, ushift_hor22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
-    umask2 = core.std.Expr([umask, ushift_ver, ushift_ver2, ushift_ver11, ushift_ver22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+    umask1 = core.std.Expr([umask, ushift_hor, ushift_hor2, ushift_hor11, ushift_hor22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
+    umask2 = core.std.Expr([umask, ushift_ver, ushift_ver2, ushift_ver11, ushift_ver22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
 
-    vmask1 = core.std.Expr([vmask, vshift_hor, vshift_hor2, vshift_hor11, vshift_hor22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
-    vmask2 = core.std.Expr([vmask, vshift_ver, vshift_ver2, vshift_ver11, vshift_ver22], f"x y - abs x z - abs + x a - abs x b - abs + +").std.Binarize(thr)
+    vmask1 = core.std.Expr([vmask, vshift_hor, vshift_hor2, vshift_hor11, vshift_hor22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
+    vmask2 = core.std.Expr([vmask, vshift_ver, vshift_ver2, vshift_ver11, vshift_ver22], f"x y - abs x z - abs + x a - 2 / abs x b - 2 / abs + +").std.Binarize(thr)
 
 
     ymask = core.std.Expr([ymask1, ymask2], f"x y max")
