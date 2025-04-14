@@ -385,7 +385,7 @@ def increase_dynamic(
     clip = core.std.Merge(clip, lumamask, weight=0.1)
     return clip
 
-def deblock(
+def deblock_old(
     clip: vs.VideoNode,
     thrvalue: int = 22,
     show_mask: bool = False
@@ -401,21 +401,26 @@ def deblock(
 
     y, u, v = clip.std.SplitPlanes()
     ymask = luma_mask_man(y, t=1, a=20, s=20)
-    umask = luma_mask_man(u, t=1, a=20, s=20)
-    vmask = luma_mask_man(v, t=1, a=20, s=20)
+    # umask = luma_mask_man(u, t=1, a=20, s=20)
+    # vmask = luma_mask_man(v, t=1, a=20, s=20)
+    umask = u
+    vmask = v
 
-    ymask1 = core.akarin.Expr([ymask], f"x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + +").std.Binarize(thr)
-    ymask2 = core.akarin.Expr([ymask], f"x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + +").std.Binarize(thr)
+    diag = "x x[1,1] - 2 / abs x x[1,-1] - 2 / abs + x x[-1,1] - 2 / abs x x[-1,-1] - 2 / abs + +"
+    hor = "x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + + x x[3,0] - 4 / abs x x[-3,0] - 4 / abs + +"
+    ver = "x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + + x x[0,3] - 4 / abs x x[0,-3] - 4 / abs + +"
+    ymask1 = core.akarin.Expr([ymask], f"{hor} {diag} +").std.Binarize(thr)
+    ymask2 = core.akarin.Expr([ymask], f"{ver} {diag} +").std.Binarize(thr)
 
-    umask1 = core.akarin.Expr([umask], f"x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + +").std.Binarize(thr)
-    umask2 = core.akarin.Expr([umask], f"x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + +").std.Binarize(thr)
+    umask1 = core.akarin.Expr([umask], f"{hor} {diag} +").std.Binarize(thr)
+    umask2 = core.akarin.Expr([umask], f"{ver} {diag} +").std.Binarize(thr)
 
-    vmask1 = core.akarin.Expr([vmask], f"x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + +").std.Binarize(thr)
-    vmask2 = core.akarin.Expr([vmask], f"x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + +").std.Binarize(thr)
+    vmask1 = core.akarin.Expr([vmask], f"{hor} {diag} +").std.Binarize(thr)
+    vmask2 = core.akarin.Expr([vmask], f"{ver} {diag} +").std.Binarize(thr)
 
-    ymask = core.std.Expr([ymask1, ymask2], f"x y max")
-    umask = core.std.Expr([umask1, umask2], f"x y max")
-    vmask = core.std.Expr([vmask1, vmask2], f"x y max")
+    ymask = core.std.Expr([ymask1, ymask2], "x y max")
+    umask = core.std.Expr([umask1, umask2], "x y max")
+    vmask = core.std.Expr([vmask1, vmask2], "x y max")
 
     y1 = deblock_qed(y, quant_edge=30, quant_inner=32)
     y1 = core.dfttest.DFTTest(y1, sigma=25, tbsize=1, sosize=8)
@@ -430,3 +435,71 @@ def deblock(
     if show_mask is True:
         return core.std.ShufflePlanes(clips=[ymask, umask, vmask], planes=[0,0,0], colorfamily=vs.YUV)
     return core.std.ShufflePlanes(clips=[y1, u1, v1], planes=[0,0,0], colorfamily=vs.YUV)  
+
+def deblock(
+    clip: vs.VideoNode
+)-> vs.VideoNode:
+    
+    core = vs.core
+
+    hor8x8 = "X 8 %"
+    hor4x4 = "X 4 %"
+    ver8x8 = "Y 8 %"
+    ver4x4 = "Y 4 %"
+    sumhor8_1 = "x x[0,-1] - abs x[1,0] x[1,-1] - abs + x[2,0] x[2,-1] - abs x[3,0] x[3,-1] - abs + + x[4,0] x[4,-1] - abs x[5,0] x[5,-1] - abs + x[6,0] x[6,-1] - abs x[7,0] x[7,-1] - abs + + +"
+    sumhor8_2 = "x x[1,0] + x[2,0] + x[3,0] + x[4,0] + x[5,0] + x[6,0] + x[7,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + x[4,-1] + x[5,-1] + x[6,-1] + x[7,-1] + - abs"
+    sumhor4 = "x x[1,0] + x[2,0] + x[3,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + - abs"
+    sumver8_1 = "x x[-1,0] - abs x[0,1] x[-1,1] - abs + x[0,2] x[-1,2] - abs x[0,3] x[-1,3] - abs + + x[0,4] x[-1,4] - abs x[0,5] x[-1,5] - abs + x[0,6] x[-1,6] - abs x[0,7] x[-1,7] - abs + + +"
+    sumver8_2 = "x x[0,1] + x[0,2] + x[0,3] + x[0,4] + x[0,5] + x[0,6] + x[0,7] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + x[-1,4] + x[-1,5] + x[-1,6] + x[-1,7] + - abs"
+    sumver4 = "x x[0,1] + x[0,2] + x[0,3] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + - abs"
+    horblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumhor8_1} {sumhor8_2} + 2 / 0 ? 0 ?")
+    horblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumhor4} 0 ? 0 ?")
+    verblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumver8_1} {sumver8_2} + 2 / 0 ? 0 ?")
+    verblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumver4} 0 ? 0 ?")
+
+    h1 = f"{hor8x8} 1 = x[-1,0] x ?"
+    h2 = f"{hor8x8} 2 = x[-2,0] {h1} ?"
+    h3 = f"{hor8x8} 3 = x[-3,0] {h2} ?"
+    h4 = f"{hor8x8} 4 = x[-4,0] {h3} ?"
+    h5 = f"{hor8x8} 5 = x[-5,0] {h4} ?"
+    h6 = f"{hor8x8} 6 = x[-6,0] {h5} ?"
+    h7 = f"{hor8x8} 7 = x[-7,0] {h6} ?"
+    horblockmask = core.akarin.Expr([horblockvalue], f"{h7}")
+    h1 = f"{hor4x4} 1 = x[-1,0] x ?"
+    h2 = f"{hor4x4} 2 = x[-2,0] {h1} ?"
+    h3 = f"{hor4x4} 3 = x[-3,0] {h2} ?"
+    horblockmask4 = core.akarin.Expr([horblockvalue4], f"{h3}")
+    v1 = f"{ver8x8} 1 = x[0,-1] x ?"
+    v2 = f"{ver8x8} 2 = x[0,-2] {v1} ?"
+    v3 = f"{ver8x8} 3 = x[0,-3] {v2} ?"
+    v4 = f"{ver8x8} 4 = x[0,-4] {v3} ?"
+    v5 = f"{ver8x8} 5 = x[0,-5] {v4} ?"
+    v6 = f"{ver8x8} 6 = x[0,-6] {v5} ?"
+    v7 = f"{ver8x8} 7 = x[0,-7] {v6} ?"
+    verblockmask = core.akarin.Expr([verblockvalue], f"{v7}")
+    v1 = f"{ver4x4} 1 = x[0,-1] x ?"
+    v2 = f"{ver4x4} 2 = x[0,-2] {v1} ?"
+    v3 = f"{ver4x4} 3 = x[0,-3] {v2} ?"
+    verblockmask4 = core.akarin.Expr([verblockvalue4], f"{v3}")
+
+    blockmask = core.akarin.Expr([horblockmask, verblockmask], f"x y max")
+    blockmask4 = core.akarin.Expr([horblockmask4, verblockmask4], f"x y max")
+    blockmaskshift1 = blockmask.resize.Point(blockmask.width, blockmask.height, src_left=1)
+    blockmaskshift2 = blockmask.resize.Point(blockmask.width, blockmask.height, src_top=1)
+    blockmaskshift1_4 = blockmask4.resize.Point(blockmask4.width, blockmask4.height, src_left=1)
+    blockmaskshift2_4 = blockmask4.resize.Point(blockmask4.width, blockmask4.height, src_top=1)
+    blockmaskfull = core.akarin.Expr([blockmask, blockmaskshift1, blockmaskshift2], f"x y max z max")
+    blockmaskfull4 = core.akarin.Expr([blockmask4, blockmaskshift1_4, blockmaskshift2_4], f"x y max z max")
+
+    blockmaskfull = core.std.Expr([blockmaskfull], f"x 0.4 pow 700 *")
+    blockmaskfull.set_output(9)
+    blockmaskfull4 = core.std.Expr([blockmaskfull4], f"x 0.4 pow 350 *")
+    blockmaskfull4.set_output(10)
+    blockmaskfull = core.akarin.Expr([blockmaskfull, blockmaskfull4], f"x y max")
+    blockmaskfull.set_output(2)
+
+    blur= deblock_qed(clip, quant_edge=30, quant_inner=32)
+    blur= core.dfttest.DFTTest(blur, sigma=25, tbsize=1, sosize=8)
+    blur = nl_means(blur, 10)
+    clip = core.std.MaskedMerge(clipa=clip, clipb=blur, mask=blockmaskfull)
+    return clip
