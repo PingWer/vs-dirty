@@ -124,7 +124,7 @@ def luma_mask_ping(
 
     return cc
 
-def IntesiveAdaptiveDenoiser (
+def intensive_adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr1: int = 3,
@@ -164,7 +164,7 @@ def IntesiveAdaptiveDenoiser (
     :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Recommended values: 0.5-2
     :param precision:           If True, a second reference and mask are created for BM3DCuda. Very slow.
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
-    :param show_mask:           1 = Show the first luma mask, 2 = Show the second luma mask (if precision = True), 3 = Show the Chroma mask (if chroma_masking = True).
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the second luma mask (if precision = True), 3 = Show the Chroma v mask (if chroma_masking = True).
 
     :return:                    16bit denoised clip or luma_mask if show_mask is 1 or 2.
     """
@@ -203,15 +203,15 @@ def IntesiveAdaptiveDenoiser (
     #chroma mask fine tuning
     if chroma_masking:
         v=get_v(clip)
-        Vmask= luma_mask_man(v,t=1.5,s=2, a=0)
-        v_Masked = core.std.MaskedMerge(get_v(chroma_denoised), v, core.std.Invert(Vmask))
+        v_mask= luma_mask_man(v,t=1.5,s=2, a=0)
+        v_masked = core.std.MaskedMerge(get_v(chroma_denoised), v, core.std.Invert(v_mask))
         u=get_u(clip)
-        Umask= luma_mask_man(u,t=1.5,s=2, a=0)
-        u_Masked = core.std.MaskedMerge(get_u(chroma_denoised), u, core.std.Invert(Umask))
-        chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_Masked, v_Masked], planes=[0,0,0], colorfamily=vs.YUV)
+        u_mask= luma_mask_man(u,t=1.5,s=2, a=0)
+        u_masked = core.std.MaskedMerge(get_u(chroma_denoised), u, core.std.Invert(u_mask))
+        chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
     
     if show_mask == 3:
-        return Vmask
+        return v_mask
 
     #Luma BM3D
     if precision:
@@ -235,7 +235,7 @@ def IntesiveAdaptiveDenoiser (
 
     return final
 
-def AdaptiveDenoiser (
+def adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr1: int = 3,
@@ -280,8 +280,6 @@ def AdaptiveDenoiser (
 
     if precision == True and luma_mask_weaken2 == None:
         luma_mask_weaken2 = luma_mask_weaken1
-
-    core = vs.core
 
     if clip.format.color_family not in {vs.YUV}:
         raise ValueError('GAD: only YUV formats are supported')
@@ -328,7 +326,7 @@ def AdaptiveDenoiser (
 
     return final   
 
-# TODO
+#TODO
 #Ported from fvsfunc 
 def auto_deblock(
     clip: vs.VideoNode,
@@ -511,20 +509,20 @@ def deblock(
     v3 = f"{ver4x4} 3 = x[0,-3] {v2} ?"
     verblockmask4 = core.akarin.Expr([verblockvalue4], f"{v3}")
 
-    blockmask = core.akarin.Expr([horblockmask, verblockmask], f"x y max")
-    blockmask4 = core.akarin.Expr([horblockmask4, verblockmask4], f"x y max")
+    blockmask = core.akarin.Expr([horblockmask, verblockmask], "x y max")
+    blockmask4 = core.akarin.Expr([horblockmask4, verblockmask4], "x y max")
     blockmaskshift1 = blockmask.resize.Point(blockmask.width, blockmask.height, src_left=1)
     blockmaskshift2 = blockmask.resize.Point(blockmask.width, blockmask.height, src_top=1)
     blockmaskshift1_4 = blockmask4.resize.Point(blockmask4.width, blockmask4.height, src_left=1)
     blockmaskshift2_4 = blockmask4.resize.Point(blockmask4.width, blockmask4.height, src_top=1)
-    blockmaskfull = core.akarin.Expr([blockmask, blockmaskshift1, blockmaskshift2], f"x y max z max")
-    blockmaskfull4 = core.akarin.Expr([blockmask4, blockmaskshift1_4, blockmaskshift2_4], f"x y max z max")
+    blockmaskfull = core.akarin.Expr([blockmask, blockmaskshift1, blockmaskshift2], "x y max z max")
+    blockmaskfull4 = core.akarin.Expr([blockmask4, blockmaskshift1_4, blockmaskshift2_4], "x y max z max")
 
-    blockmaskfull = core.std.Expr([blockmaskfull], f"x 0.4 pow 700 *")
+    blockmaskfull = core.std.Expr([blockmaskfull], "x 0.4 pow 700 *")
     blockmaskfull.set_output(9)
-    blockmaskfull4 = core.std.Expr([blockmaskfull4], f"x 0.4 pow 350 *")
+    blockmaskfull4 = core.std.Expr([blockmaskfull4], "x 0.4 pow 350 *")
     blockmaskfull4.set_output(10)
-    blockmaskfull = core.akarin.Expr([blockmaskfull, blockmaskfull4], f"x y max")
+    blockmaskfull = core.akarin.Expr([blockmaskfull, blockmaskfull4], "x y max")
     blockmaskfull.set_output(2)
 
     blur= deblock_qed(clip, quant_edge=30, quant_inner=32)
