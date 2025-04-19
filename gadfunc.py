@@ -7,127 +7,14 @@ try:
     from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT
     from vstools.enums import color
+    from gadMask import *
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
-
-def luma_mask (
-        clip: vs.VideoNode,
-        min_value: float = 17500,
-        sthmax: float = 0.95,
-        sthmin: float = 1.4,
-)-> vs.VideoNode :
-    
-    core = vs.core
-    
-    luma = get_y(clip)
-    lumamask = core.std.Expr(
-        [luma],
-        "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sthmax, sthmin)
-    )
-    lumamask = lumamask.std.Invert()
-
-    return lumamask
-
-def luma_mask_man (
-        clip: vs.VideoNode,
-        t: float = 0.3,
-        s: float = 5,
-        a: float = 0.3,
-)-> vs.VideoNode :
-    """
-    Custom luma mask that uses a different approach to calculate the mask (Made By Mhanz).
-    This mask is sensitive to the brightness of the image producing a smooth transition between dark and bright areas of th clip based on brightness levels.
-    The mask exalt bright areas and darkens dark areas, inverting them.
-    
-    Curve graph https://www.geogebra.org/calculator/cqnfnqyk
-    
-    :param clip:            Clip to process.
-    :param s:               
-    :param t:               Threshold that determines what is considered light and what is dark.
-    :param a:               
-    :return:                Luma mask.
-    """
-
-    core = vs.core
-    
-    luma = get_y(clip)
-    f=1/3
-
-    maxvalue = (1 << clip.format.bits_per_sample) - 1
-    normx = f"x 2 * {maxvalue} / "
-
-    lumamask = core.std.Expr(
-        [luma],
-        f"x "                  # Mettiamo x sullo stack per la moltiplicazione finale
-        f"{normx} {t} < "            # x < b ?
-        # - Ramo TRUE → f(x):
-        f"{normx} {t} - {normx} {t} - 2 pow {s} * {a} + {f} pow / 1 + "
-        # - Ramo FALSE → h(x):
-        f"{normx} {t} - {normx} {t} - 2 pow {s} * 5 * {a} + {f} pow / 1 + "
-        # - Operatore ternario:
-        f"? "
-        # - moltiplica per x:
-        f"*"
-    )
-
-    lumamask = lumamask.std.Invert()
-
-    return lumamask
-
-def luma_mask_ping(
-        clip: vs.VideoNode,
-        low_amp: float = 0.8,
-        thr: float = 55,
-) -> vs.VideoNode:
-    """
-    Custom luma mask that uses a different approach to calculate the mask (Made By PingWer).
-    This mask is sensitive to the brightness of the image, producing a constant dark mask for bright areas, 
-    a constant white mask for very dark areas, and a exponential transition between these extremes based on brightness levels.
-
-    Curve graph https://www.geogebra.org/calculator/fxbrx4s4
-
-    :param clip:            Clip to process.
-    :param low_amp:         General preamplification value, but more sensitive for values lower than thr.
-    :param thr:             Threshold that determines what is considered light and what is dark.
-    :return:                Luma mask.
-    """
-    import math
-    import vapoursynth as vs
-
-    core = vs.core
-
-    bit_depth = clip.format.bits_per_sample
-    max_val = (1 << bit_depth) - 1
-
-    scaled_thr = thr * (max_val / 255.0)
-    thr_scaled = scaled_thr / max_val
-
-    high_amp = (math.exp(low_amp - 1) + low_amp * math.exp(low_amp)) / (math.exp(low_amp) - 1)
-
-    expr = (
-        f"x {max_val} / "  # x_n
-        f"dup {thr_scaled} < "  # condizione
-        # ramo TRUE
-        f"{thr_scaled} 1 + - exp {low_amp} + "
-        # ramo FALSE
-        f"{high_amp} {high_amp} dup {thr_scaled} 1 - - log {high_amp} * exp {low_amp} + / - "
-        # ternario
-        f"? "
-        # moltiplica per x (valore originale)
-        f"x *"
-    )
-
-    cc = core.std.Expr(get_y(clip), expr)
-
-    # Inverti il risultato
-    cc = core.std.Invert(cc)
-
-    return cc
 
 def intensive_adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
-    tr1: int = 3,
+    tr1: int = 1,
     tr2: int = 2,
     sigma: int = 12,
     luma_mask_weaken1: float = 0.85,
@@ -136,8 +23,9 @@ def intensive_adaptive_denoiser (
     chroma_strength: float = 1.0,
     precision: bool = False,
     chroma_masking: bool = False,
-    mask_type: int = 2,
-    show_mask: int = 0
+    show_mask: int = 0,
+    flat_penalty: float = 0.5,
+    texture_penalty: float = 1.0
 ) -> vs.VideoNode:
     """
     Intensive Adaptive Denoise with default parameters for film scans (16mm).
@@ -164,7 +52,7 @@ def intensive_adaptive_denoiser (
     :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Recommended values: 0.5-2
     :param precision:           If True, a second reference and mask are created for BM3DCuda. Very slow.
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
-    :param show_mask:           1 = Show the first luma mask, 2 = Show the second luma mask (if precision = True), 3 = Show the Chroma v mask (if chroma_masking = True).
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True) .
 
     :return:                    16bit denoised clip or luma_mask if show_mask is 1 or 2.
     """
@@ -180,14 +68,19 @@ def intensive_adaptive_denoiser (
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
 
-    if (mask_type == 0):
-        lumamask = luma_mask(clip)
-    elif (mask_type == 1):
-        lumamask = luma_mask_man(clip)
-    else:
-        lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
-    
+    lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
     darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
+
+    if precision:
+        flatmask = flat_mask(clip, bm3d_sigma=10)
+
+        darken_luma_mask = core.std.Expr(
+        [darken_luma_mask, flatmask],
+        f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
+        darken_luma_mask = darken_luma_mask.std.BoxBlur(hradius=2, vradius=2)
+        if show_mask == 1:
+            return darken_luma_mask
+        
     if show_mask == 1:
         return darken_luma_mask
 
@@ -210,20 +103,13 @@ def intensive_adaptive_denoiser (
         u_masked = core.std.MaskedMerge(get_u(chroma_denoised), u, core.std.Invert(u_mask))
         chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
     
-    if show_mask == 3:
+    if show_mask == 2:
         return v_mask
+    elif show_mask == 3:
+        return u_mask
 
     #Luma BM3D
     if precision:
-        if (mask_type == 0):
-            lumamask = luma_mask(luma)
-        elif (mask_type == 1):
-            lumamask = luma_mask_man(luma)
-        else:
-            lumamask = luma_mask_ping(luma, thr=luma_mask_thr)
-        darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
-        if show_mask == 2:
-            return darken_luma_mask
         mvtools = MVTools(luma)
         vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
         ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr2)
