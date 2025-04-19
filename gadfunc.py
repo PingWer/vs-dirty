@@ -395,12 +395,19 @@ def auto_deblock(
 
     return final
 
+
+#TODO
 def increase_dynamic(
     clip: vs.VideoNode,
     t: float = 0.7,
     s: float = 50,
     a: float = 300,
 )-> vs.VideoNode:
+    """
+    Makes dark areas more dark, and white areas more white.
+    
+    You can use it if you lost dynamic but it's very subjective, using this filter will raise many eyebrows.
+    """
     
     core=vs.core
 
@@ -469,21 +476,26 @@ def deblock(
     
     core = vs.core
 
+    # stringhe di resto già pronte per 4x4 e 8x8, esempio se voglio il valore del primo pixel nel blocco 8x8 sarà "{hor8x8} 0 ="
     hor8x8 = "X 8 %"
     hor4x4 = "X 4 %"
     ver8x8 = "Y 8 %"
     ver4x4 = "Y 4 %"
+
+    # COSTRUZIONE DELLA MASK
+    # due metodi per rilevare differenze di luma ai bordi, due clip di valori, una orizzontale l'altra verticale
     sumhor8_1 = "x x[0,-1] - abs x[1,0] x[1,-1] - abs + x[2,0] x[2,-1] - abs x[3,0] x[3,-1] - abs + + x[4,0] x[4,-1] - abs x[5,0] x[5,-1] - abs + x[6,0] x[6,-1] - abs x[7,0] x[7,-1] - abs + + +"
     sumhor8_2 = "x x[1,0] + x[2,0] + x[3,0] + x[4,0] + x[5,0] + x[6,0] + x[7,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + x[4,-1] + x[5,-1] + x[6,-1] + x[7,-1] + - abs"
-    sumhor4 = "x x[1,0] + x[2,0] + x[3,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + - abs"
+    sumhor4_1 = "x x[1,0] + x[2,0] + x[3,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + - abs"
     sumver8_1 = "x x[-1,0] - abs x[0,1] x[-1,1] - abs + x[0,2] x[-1,2] - abs x[0,3] x[-1,3] - abs + + x[0,4] x[-1,4] - abs x[0,5] x[-1,5] - abs + x[0,6] x[-1,6] - abs x[0,7] x[-1,7] - abs + + +"
     sumver8_2 = "x x[0,1] + x[0,2] + x[0,3] + x[0,4] + x[0,5] + x[0,6] + x[0,7] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + x[-1,4] + x[-1,5] + x[-1,6] + x[-1,7] + - abs"
-    sumver4 = "x x[0,1] + x[0,2] + x[0,3] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + - abs"
+    sumver4_1 = "x x[0,1] + x[0,2] + x[0,3] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + - abs"
     horblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumhor8_1} {sumhor8_2} + 2 / 0 ? 0 ?")
-    horblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumhor4} 0 ? 0 ?")
+    horblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumhor4_1} 0 ? 0 ?")
     verblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumver8_1} {sumver8_2} + 2 / 0 ? 0 ?")
-    verblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumver4} 0 ? 0 ?")
+    verblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumver4_1} 0 ? 0 ?")
 
+    #allungamento dei valori verticalmente e orizzontalmente
     h1 = f"{hor8x8} 1 = x[-1,0] x ?"
     h2 = f"{hor8x8} 2 = x[-2,0] {h1} ?"
     h3 = f"{hor8x8} 3 = x[-3,0] {h2} ?"
@@ -509,24 +521,78 @@ def deblock(
     v3 = f"{ver4x4} 3 = x[0,-3] {v2} ?"
     verblockmask4 = core.akarin.Expr([verblockvalue4], f"{v3}")
 
-    blockmask = core.akarin.Expr([horblockmask, verblockmask], "x y max")
+    hormaskshift_top1 = horblockmask.resize.Point(clip.width, clip.height, src_top=1)
+    hormaskshift_top2 = horblockmask.resize.Point(clip.width, clip.height, src_top=2)
+    hormaskshift_bot1 = horblockmask.resize.Point(clip.width, clip.height, src_top=-1)
+    vermaskshift_left1 = verblockmask.resize.Point(clip.width, clip.height, src_left=1)
+    vermaskshift_left2 = verblockmask.resize.Point(clip.width, clip.height, src_left=2)
+    vermaskshift_rig1 = verblockmask.resize.Point(clip.width, clip.height, src_left=-1)
+
+    #fusione delle mask orizzontali e verticali, poi due shift per allargare la mask 4x4 da 1px a 2px
     blockmask4 = core.akarin.Expr([horblockmask4, verblockmask4], "x y max")
-    blockmaskshift1 = blockmask.resize.Point(blockmask.width, blockmask.height, src_left=1)
-    blockmaskshift2 = blockmask.resize.Point(blockmask.width, blockmask.height, src_top=1)
     blockmaskshift1_4 = blockmask4.resize.Point(blockmask4.width, blockmask4.height, src_left=1)
     blockmaskshift2_4 = blockmask4.resize.Point(blockmask4.width, blockmask4.height, src_top=1)
-    blockmaskfull = core.akarin.Expr([blockmask, blockmaskshift1, blockmaskshift2], "x y max z max")
+    blockmaskfull8 = core.akarin.Expr([horblockmask, verblockmask, hormaskshift_top1, hormaskshift_top2, hormaskshift_bot1, vermaskshift_left1, vermaskshift_left2, vermaskshift_rig1], "x y max z max a max b max c max d max e max")
     blockmaskfull4 = core.akarin.Expr([blockmask4, blockmaskshift1_4, blockmaskshift2_4], "x y max z max")
 
-    blockmaskfull = core.std.Expr([blockmaskfull], "x 0.4 pow 700 *")
-    blockmaskfull.set_output(9)
+    #potenziamento della mask, potrebbe essere utile inserire un thr variabile prima di questo potenziamento
+    blockmaskfull8 = core.std.Expr([blockmaskfull8], "x 0.4 pow 700 *")
     blockmaskfull4 = core.std.Expr([blockmaskfull4], "x 0.4 pow 350 *")
-    blockmaskfull4.set_output(10)
-    blockmaskfull = core.akarin.Expr([blockmaskfull, blockmaskfull4], "x y max")
-    blockmaskfull.set_output(2)
 
-    blur= deblock_qed(clip, quant_edge=30, quant_inner=32)
-    blur= core.dfttest.DFTTest(blur, sigma=25, tbsize=1, sosize=8)
-    blur = nl_means(blur, 10)
-    clip = core.std.MaskedMerge(clipa=clip, clipb=blur, mask=blockmaskfull)
-    return clip
+    # DEBLOCK 4X4
+
+    # dalla funzione 12: D = ( 3(s[0] – s[–1]) – ( s[1] – s[–2] ) ) / 2
+    deltahor_0 = f"{hor4x4} 0 = x x[-1,0] - 3 * x[1,0] x[-2,0] - - 2 / 0 ?"
+    deltahor_n1 = f"{hor4x4} 3 = x x[1,0] - 3 * x[-1,0] x[2,0] - - 2 / {deltahor_0} ?"
+    deltaver_0 = f"{ver4x4} 0 = x x[0,-1] - 3 * x[0,1] x[0,-2] - - 2 / 0 ?"
+    deltaver_n1 = f"{ver4x4} 3 = x x[0,1] - 3 * x[0,-1] x[0,2] - - 2 / {deltaver_0} ?"
+    
+    # nella funzione 13 c'è una funzione di clipping molto importante, modificata in quanto non abbiamo qp
+    thr = 2000
+    # funzione 14: s'[i] = s[i] – D (N – i) / (2N + 1), per un blocco 4x4 è costante: s'[i] = s[i] – D 1/3
+    cost4x4 = 1/3
+    f14_hor = f"x {deltahor_n1} {cost4x4} * -"
+    f14_ver = f"x {deltaver_n1} {cost4x4} * -"
+    deltahor = core.akarin.Expr([clip], f"{deltahor_n1} abs {thr} < {f14_hor} {deltahor_n1} 0 > x {thr} - x {thr} + ? ?")
+    deltahor = core.akarin.Expr([deltahor], f"{hor4x4} 3 = x {hor4x4} 0 = x 0 ? ?")
+    deltaver = core.akarin.Expr([clip], f"{deltaver_n1} abs {thr} < {f14_ver} {deltaver_n1} 0 > x {thr} - x {thr} + ? ?")
+    deltaver = core.akarin.Expr([deltaver], f"{ver4x4} 3 = x {ver4x4} 0 = x 0 ? ?")
+    delta = core.akarin.Expr([deltahor, deltaver], "x y max")
+    deblock4x4 = core.std.MaskedMerge(clipa=clip, clipb=delta, mask=blockmaskfull4)
+
+    # DEBLOCK 8X8
+
+    # dalla funzione 12: D = ( 3(s[0] – s[–1]) – ( s[1] – s[–2] ) ) / 2
+    deltahor_0 = f"{hor8x8} 0 = x x[-1,0] - 3 * x[1,0] x[-2,0] - - 2 / 0 ?"
+    deltahor_n1 = f"{hor8x8} 7 = x x[1,0] - 3 * x[-1,0] x[2,0] - - 2 / {deltahor_0} ?"
+    deltahor_1 = f"{hor8x8} 1 = x x[-1,0] - 3 * x[1,0] x[-2,0] - - 2 / 0 ?"
+    deltahor_n2 = f"{hor8x8} 6 = x x[1,0] - 3 * x[-1,0] x[2,0] - - 2 / {deltahor_1} ?"
+    deltaver_0 = f"{ver8x8} 0 = x x[0,-1] - 3 * x[0,1] x[0,-2] - - 2 / 0 ?"
+    deltaver_n1 = f"{ver8x8} 7 = x x[0,1] - 3 * x[0,-1] x[0,2] - - 2 / {deltaver_0} ?"
+    deltaver_1 = f"{ver8x8} 1 = x x[0,-1] - 3 * x[0,1] x[0,-2] - - 2 / 0 ?"
+    deltaver_n2 = f"{ver8x8} 6 = x x[0,1] - 3 * x[0,-1] x[0,2] - - 2 / {deltaver_1} ?"
+
+    # nella funzione 13 c'è una funzione di clipping molto importante, modificata in quanto non abbiamo qp
+    thr = 2000
+    # funzione 14: s'[i] = s[i] – D (N – i) / (2N + 1)
+    f14_hor0 = f"x {deltahor_n1} 0.4 * -"
+    f14_hor1 = f"x {deltahor_n2} 0.2 * -"
+    f14_ver0 = f"x {deltaver_n1} 0.4 * -"
+    f14_ver1 = f"x {deltaver_n2} 0.2 * -"
+    deltahor = core.akarin.Expr([clip], f"{deltahor_n1} abs {thr} < {f14_hor0} {deltahor_n1} 0 > x {thr} - x {thr} + ? ?")
+    deltahor = core.akarin.Expr([deltahor], f"{deltahor_n2} abs {thr} < {f14_hor1} {deltahor_n2} 0 > x {thr} - x {thr} + ? ?")
+    deltahor = core.akarin.Expr([deltahor], f"{hor8x8} 7 = x {hor8x8} 6 = x {hor8x8} 1 = x {hor8x8} 0 = x 0 ? ? ? ?")
+    deltaver = core.akarin.Expr([clip], f"{deltaver_n1} abs {thr} < {f14_ver0} {deltaver_n1} 0 > x {thr} - x {thr} + ? ?")
+    deltaver = core.akarin.Expr([deltaver], f"{deltaver_n2} abs {thr} < {f14_ver1} {deltaver_n2} 0 > x {thr} - x {thr} + ? ?")
+    deltaver = core.akarin.Expr([deltaver], f"{ver8x8} 7 = x {ver8x8} 6 = x {ver8x8} 1 = x {ver8x8} 0 = x 0 ? ? ? ?")
+    delta = core.akarin.Expr([deltahor, deltaver], "x y max")
+    deblock8x8 = core.std.MaskedMerge(clipa=clip, clipb=delta, mask=blockmaskfull8)
+    blockmaskfull8.set_output(5)
+
+    # unione cancellando il deblock 4x4 dove c'è il blocco 8x8
+    deleted4 = core.akarin.Expr([deblock4x4], f"{hor8x8} 5 = x {hor8x8} 4 = x {hor8x8} 3 = x {hor8x8} 2 = x 0 ? ? ? ?")
+    deleted4 = core.akarin.Expr([deleted4], f"{ver8x8} 5 = x {ver8x8} 4 = x {ver8x8} 3 = x {ver8x8} 2 = x 0 ? ? ? ?")
+    deleted8 = core.akarin.Expr([deblock8x8], f"{hor8x8} 7 = x {hor8x8} 6 = x {hor8x8} 1 = x {hor8x8} 0 = x {ver8x8} 7 = x {ver8x8} 6 = x {ver8x8} 1 = x {ver8x8} 0 = x 0 ? ? ? ? ? ? ? ?")
+    union = core.akarin.Expr([deleted8, deleted4], "x y max")
+
+    return union
