@@ -4,11 +4,11 @@ except ImportError:
     raise ImportError('Vapoursynth R70> is required. Download it via: pip install vapoursynth')
 
 try:
-    from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
-    from vstools import get_y, get_u, get_v, PlanesT
-    from vstools.enums import color
+    from vsdenoise import BM3DCuda, nl_means, Profile
+    from vstools import get_y
+    import math
 except ImportError:
-    raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+    raise ImportError('vsdenoise, vstools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
 
 
@@ -49,7 +49,6 @@ def luma_mask_man (
     :param a:               
     :return:                Luma mask.
     """
-
     core = vs.core
     
     luma = get_y(clip)
@@ -90,11 +89,9 @@ def luma_mask_ping(
 
     :param clip:            Clip to process.
     :param low_amp:         General preamplification value, but more sensitive for values lower than thr.
-    :param thr:             Threshold that determines what is considered light and what is dark.
+    :param thr:             Threshold that determines what is considered bright and what is dark.
     :return:                Luma mask.
     """
-    import math
-    import vapoursynth as vs
 
     core = vs.core
 
@@ -126,28 +123,50 @@ def luma_mask_ping(
 
     return cc
 
-def flat_mask(clip: vs.VideoNode, blur_radius=1, edge_thr_low=0.001, bm3d_sigma=None, edge_thr_high=None) -> vs.VideoNode:
-    from vsdenoise import BM3DCuda, Profile
-    from vstools import get_y
-    import vapoursynth as vs
+def flat_mask(
+        clip: vs.VideoNode, 
+        blur_radius: int = 1, 
+        tr: int = 1, 
+        edge_thr_low: float = 0.001, 
+        bm3d_sigma: float = None, 
+        edge_thr_high: float = None,
+        debug: bool = False
+        )-> vs.VideoNode:
+    """
+    This custom flat mask (Made By PingWer) is more conservative then JET one, so when a white flat area exit is 99% a real flat area (only if you use reasonable parameters).
+    With high values of edge_thr_high you can get a really good edge mask.
+    The default value are inteded to be used with noisy and grany video. It's reccomended to pass a not denoised clip, or at least a really light denoised one. 
 
+    :param clip:            Clip to process.
+    :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content).
+    :param tr:              Temporal radius for the BM3D denoiser (temporal radius must be the same of whatever temporal denoiser you are using).
+    :param edge_thr_low:    Threshold for the low edge detection (ideally the impact of the changes may very, so is better to leave it as default).
+    :param bm3d_sigma:      Sigma value for the BM3D denoiser. If None, a default value of 25.0 is used.
+    :param edge_thr_high:   Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
+    :param debug:           If True, prints the standard deviation and threshold values for each frame.
+    :return:                Flat mask.
+    """
     core = vs.core
+
     y = get_y(clip)
 
-    # Calcola media e quadrato della media una volta sola
+    if clip.format.bits_per_sample != 16:
+        clip = clip.fmtc.bitdepth(bits=16)
+
+    # Add stats to the clip
     stats_avg = y.std.PlaneStats()
     sq_clip = core.std.Expr([y], "x x *")
     stats_sq = sq_clip.std.PlaneStats()
 
-    # Denoise una volta sola
     if bm3d_sigma is None:
-        bm3d_sigma = 25.0
+        bm3d_sigma = 25.0 #This should be fine for most noisy content as default, but is better to set other sigma parameter based on the contet. Should be fine to use the same sigma value for all the clip, but need to be tested. 
     try:
-        y_dn = BM3DCuda.denoise(y, sigma=bm3d_sigma, tr=1, planes=0, profile=Profile.HIGH)
+        # BM3DCuda must be available and the temporal radius must be the same of whatever temporal denoiser you are using
+        y_dn = BM3DCuda.denoise(y, sigma=bm3d_sigma, tr=tr, planes=0, profile=Profile.HIGH)
     except Exception:
         y_dn = y
 
-    # Edge detection e blur (una volta sola)
+    # Edge detection e blurring. Remove grain and noise from flat areas (intentionally remove some details)
     blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
     blurred2 = core.std.BoxBlur(blurred1, hradius=blur_radius * 2, vradius=blur_radius * 2)
     edges = core.std.Expr([
@@ -169,7 +188,8 @@ def flat_mask(clip: vs.VideoNode, blur_radius=1, edge_thr_low=0.001, bm3d_sigma=
         thr_high_min, thr_high_max = 0.005, 1.0
         norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.0), 1.0)
         return (thr_high_max * ((thr_high_min / thr_high_max) ** norm))
-
+    
+    #Mask and thr operations
     def select_mask(n: int) -> vs.VideoNode:
         f_avg = stats_avg.get_frame(n)
         f_sq = stats_sq.get_frame(n)
@@ -180,7 +200,8 @@ def flat_mask(clip: vs.VideoNode, blur_radius=1, edge_thr_low=0.001, bm3d_sigma=
         mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
         mask = core.std.Expr([mask_fine, mask_medium], "x y min")
         mask = mask.std.Invert().std.Minimum().std.Maximum()
-        print(f"Frame {n}: stdev={stdev}, sigma={bm3d_sigma}, thr_high={thr}")
+        if debug:
+            print(f"Frame {n}: stdev={stdev}, sigma={bm3d_sigma}, thr_high={thr}")
         return mask
 
     return core.std.FrameEval(clip=y, eval=select_mask)
