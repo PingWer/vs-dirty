@@ -128,7 +128,7 @@ def flat_mask(
         blur_radius: int = 1, 
         tr: int = 1, 
         edge_thr_low: float = 0.001, 
-        bm3d_sigma: float = None, 
+        bm3d_sigma: float = 25, 
         edge_thr_high: float = None,
         debug: bool = False
         )-> vs.VideoNode:
@@ -141,7 +141,7 @@ def flat_mask(
     :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content).
     :param tr:              Temporal radius for the BM3D denoiser (temporal radius must be the same of whatever temporal denoiser you are using).
     :param edge_thr_low:    Threshold for the low edge detection (ideally the impact of the changes may very, so is better to leave it as default).
-    :param bm3d_sigma:      Sigma value for the BM3D denoiser. If None, a default value of 25.0 is used.
+    :param bm3d_sigma:      Sigma value for the BM3D denoiser. If None, a default value of 25.0 is used, this should be fine for most noisy content as default, but is better to set other sigma parameter based on the contet. Should be fine to use the same sigma value for all the clip, but need to be tested. 
     :param edge_thr_high:   Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
     :param debug:           If True, prints the standard deviation and threshold values for each frame.
     :return:                Flat mask.
@@ -158,13 +158,9 @@ def flat_mask(
     sq_clip = core.std.Expr([y], "x x *")
     stats_sq = sq_clip.std.PlaneStats()
 
-    if bm3d_sigma is None:
-        bm3d_sigma = 25.0 #This should be fine for most noisy content as default, but is better to set other sigma parameter based on the contet. Should be fine to use the same sigma value for all the clip, but need to be tested. 
-    try:
-        # BM3DCuda must be available and the temporal radius must be the same of whatever temporal denoiser you are using
-        y_dn = BM3DCuda.denoise(y, sigma=bm3d_sigma, tr=tr, planes=0, profile=Profile.HIGH)
-    except Exception:
-        y_dn = y
+    # BM3DCuda must be available and the temporal radius must be the same of whatever temporal denoiser you are using
+    # y_dn = BM3DCuda.denoise(y, sigma=bm3d_sigma, tr=tr, planes=0, profile=Profile.HIGH)
+    y_dn = y.std.Median().std.Median()
 
     # Edge detection e blurring. Remove grain and noise from flat areas (intentionally remove some details)
     blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
@@ -202,6 +198,7 @@ def flat_mask(
         mask = mask.std.Invert().std.Minimum().std.Maximum()
         if debug:
             print(f"Frame {n}: stdev={stdev}, sigma={bm3d_sigma}, thr_high={thr}")
+        mask = mask.std.Median().std.Median()
         return mask
 
     return core.std.FrameEval(clip=y, eval=select_mask)

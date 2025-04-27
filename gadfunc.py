@@ -371,16 +371,19 @@ def deblock(
 
     # COSTRUZIONE DELLA MASK
     # due metodi per rilevare differenze di luma ai bordi, due clip di valori, una orizzontale l'altra verticale
-    sumhor8_1 = "x x[0,-1] - abs x[1,0] x[1,-1] - abs + x[2,0] x[2,-1] - abs x[3,0] x[3,-1] - abs + + x[4,0] x[4,-1] - abs x[5,0] x[5,-1] - abs + x[6,0] x[6,-1] - abs x[7,0] x[7,-1] - abs + + +"
-    sumhor8_2 = "x x[1,0] + x[2,0] + x[3,0] + x[4,0] + x[5,0] + x[6,0] + x[7,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + x[4,-1] + x[5,-1] + x[6,-1] + x[7,-1] + - abs"
-    sumhor4_1 = "x x[1,0] + x[2,0] + x[3,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + - abs"
-    sumver8_1 = "x x[-1,0] - abs x[0,1] x[-1,1] - abs + x[0,2] x[-1,2] - abs x[0,3] x[-1,3] - abs + + x[0,4] x[-1,4] - abs x[0,5] x[-1,5] - abs + x[0,6] x[-1,6] - abs x[0,7] x[-1,7] - abs + + +"
-    sumver8_2 = "x x[0,1] + x[0,2] + x[0,3] + x[0,4] + x[0,5] + x[0,6] + x[0,7] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + x[-1,4] + x[-1,5] + x[-1,6] + x[-1,7] + - abs"
-    sumver4_1 = "x x[0,1] + x[0,2] + x[0,3] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + - abs"
-    horblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumhor8_1} {sumhor8_2} + 2 / 0 ? 0 ?")
-    horblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumhor4_1} 0 ? 0 ?")
-    verblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumver8_1} {sumver8_2} + 2 / 0 ? 0 ?")
-    verblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumver4_1} 0 ? 0 ?")
+    sumhor8_pxdiff = "x x[0,-1] - abs x[1,0] x[1,-1] - abs + x[2,0] x[2,-1] - abs x[3,0] x[3,-1] - abs + + x[4,0] x[4,-1] - abs x[5,0] x[5,-1] - abs + x[6,0] x[6,-1] - abs x[7,0] x[7,-1] - abs + + +"
+    sumhor8_pxdiff2 = "x[0,1] x[0,-2] - abs x[1,1] x[1,-2] - abs + x[2,1] x[2,-2] - abs x[3,1] x[3,-2] - abs + + x[4,1] x[4,-2] - abs x[5,1] x[5,-2] - abs + x[6,1] x[6,-2] - abs x[7,1] x[7,-2] - abs + + +"
+    sumhor8_diffpx = "x x[1,0] + x[2,0] + x[3,0] + x[4,0] + x[5,0] + x[6,0] + x[7,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + x[4,-1] + x[5,-1] + x[6,-1] + x[7,-1] + - abs"
+    sumhor4_diffpx = "x x[1,0] + x[2,0] + x[3,0] + x[0,-1] x[1,-1] + x[2,-1] + x[3,-1] + - abs"
+    sumver8_pxdiff = "x x[-1,0] - abs x[0,1] x[-1,1] - abs + x[0,2] x[-1,2] - abs x[0,3] x[-1,3] - abs + + x[0,4] x[-1,4] - abs x[0,5] x[-1,5] - abs + x[0,6] x[-1,6] - abs x[0,7] x[-1,7] - abs + + +"
+    sumver8_pxdiff2 = "x[1,0] x[-2,0] - abs x[1,1] x[-2,1] - abs + x[1,2] x[-2,2] - abs x[1,3] x[-2,3] - abs + + x[1,4] x[-2,4] - abs x[1,5] x[-2,5] - abs + x[1,6] x[-2,6] - abs x[1,7] x[-2,7] - abs + + +"
+    sumver8_diffpx = "x x[0,1] + x[0,2] + x[0,3] + x[0,4] + x[0,5] + x[0,6] + x[0,7] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + x[-1,4] + x[-1,5] + x[-1,6] + x[-1,7] + - abs"
+    sumver4_diffpx = "x x[0,1] + x[0,2] + x[0,3] + x[-1,0] x[-1,1] + x[-1,2] + x[-1,3] + - abs"
+
+    horblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumhor8_pxdiff} {sumhor8_pxdiff2} 0.33 * + {sumhor8_diffpx} + 2 / 0 ? 0 ?")
+    horblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumhor4_diffpx} 0 ? 0 ?")
+    verblockvalue = core.akarin.Expr([clip], f"{hor8x8} 0 = {ver8x8} 0 = {sumver8_pxdiff} {sumver8_pxdiff2} 0.33 * + {sumver8_diffpx} + 2 / 0 ? 0 ?")
+    verblockvalue4 = core.akarin.Expr([clip], f"{hor4x4} 0 = {ver4x4} 0 = {sumver4_diffpx} 0 ? 0 ?")
 
     #allungamento dei valori verticalmente e orizzontalmente
     h1 = f"{hor8x8} 1 = x[-1,0] x ?"
