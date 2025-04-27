@@ -3,3 +3,4 @@ test.vpy
 *.pyc
 .vsjet
 __pycache__
+*ffmpeg*

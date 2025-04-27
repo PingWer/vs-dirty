@@ -128,24 +128,32 @@ def flat_mask(
         blur_radius: int = 1, 
         tr: int = 1, 
         edge_thr_low: float = 0.001, 
-        bm3d_sigma: float = 25, 
+        sigma: float = None, 
         edge_thr_high: float = None,
-        debug: bool = False
+        debug: bool = False,
+        dntype: int = 1,
+        speed: int = 1,
         )-> vs.VideoNode:
     """
     This custom flat mask (Made By PingWer) is more conservative then JET one, so when a white flat area exit is 99% a real flat area (only if you use reasonable parameters).
     With high values of edge_thr_high you can get a really good edge mask.
-    The default value are inteded to be used with noisy and grany video. It's reccomended to pass a not denoised clip, or at least a really light denoised one. 
+    The default values of sigma are inteded to be used with noisy and grany video. It's reccomended to pass a not denoised clip, or at least a really light denoised one in order to prevent detail loss. 
 
     :param clip:            Clip to process.
-    :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content).
-    :param tr:              Temporal radius for the BM3D denoiser (temporal radius must be the same of whatever temporal denoiser you are using).
-    :param edge_thr_low:    Threshold for the low edge detection (ideally the impact of the changes may very, so is better to leave it as default).
-    :param bm3d_sigma:      Sigma value for the BM3D denoiser. If None, a default value of 25.0 is used, this should be fine for most noisy content as default, but is better to set other sigma parameter based on the contet. Should be fine to use the same sigma value for all the clip, but need to be tested. 
+    :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content, increse if the content is a serious amount of blocking).
+    :param tr:              Temporal radius for the BM3D denoiser (temporal radius must be the same of whatever temporal denoiser you are using if tr>1 ref clip and vectors shoulf be passed as well).
+    :param edge_thr_low:    Threshold for the low edge detection (ideally the impact of the changes may very, so it's better to leave it as default).
+    :param sigma:           Sigma value for the BM3D denoiser or NlMeans depending on dntype. If None, a default value of 5.0 or 0.8 is used. (BM3D suggeste)
     :param edge_thr_high:   Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
     :param debug:           If True, prints the standard deviation and threshold values for each frame.
+    :param dntype:          Denoiser type. 1 for BM3D, 2 for NLM.
+    :param speed:           Speed of the BM3D denoiser. 1 for high quality denoise but is really slow (suggested for noisy and grainy content), 2 for low quality denoise but is really fast (suggested for modern flat anime).
     :return:                Flat mask.
     """
+    #TODO
+    #supporto a tr>1 con il passaggio di ref e vectors (controllare con ifistance)
+    #controllo se esiste un Y plane oppurese è già grayscale
+
     core = vs.core
 
     y = get_y(clip)
@@ -158,11 +166,23 @@ def flat_mask(
     sq_clip = core.std.Expr([y], "x x *")
     stats_sq = sq_clip.std.PlaneStats()
 
-    # BM3DCuda must be available and the temporal radius must be the same of whatever temporal denoiser you are using
-    # y_dn = BM3DCuda.denoise(y, sigma=bm3d_sigma, tr=tr, planes=0, profile=Profile.HIGH)
-    y_dn = y.std.Median().std.Median()
+    if dntype == 1:
+        if sigma is None:
+            sigma = 5.0
+        if speed == 1:
+            profiles = Profile.HIGH
+        elif speed == 2:
+            profiles = Profile.FAST
 
-    # Edge detection e blurring. Remove grain and noise from flat areas (intentionally remove some details)
+        y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, planes=0, profile=profiles)
+    elif dntype == 2:
+        if sigma is None:
+            sigma = 0.8
+        y_dn = nl_means(y, strength=sigma, tr=tr, planes=0)
+        y_dn= y_dn.std.Median().std.Median()
+    else:
+        raise ValueError("dntype must be 1 (BM3D) or 2 (NLM)")
+    
     blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
     blurred2 = core.std.BoxBlur(blurred1, hradius=blur_radius * 2, vradius=blur_radius * 2)
     edges = core.std.Expr([
@@ -177,12 +197,12 @@ def flat_mask(
         return (sq_avg - avg ** 2) ** 0.5
 
     def auto_thr_high(stddev):
-        if stddev >0.8:
-            stdev_min, stdev_max = 0.8, 1.0
+        if stddev >0.900:
+            stdev_min, stdev_max = 0.800, 1.000
         else:
-            stdev_min, stdev_max = 0.1, 1.00
-        thr_high_min, thr_high_max = 0.005, 1.0
-        norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.0), 1.0)
+            stdev_min, stdev_max = 0.400, 1.000
+        thr_high_min, thr_high_max = 0.005, 1.000
+        norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.000), 1.000)
         return (thr_high_max * ((thr_high_min / thr_high_max) ** norm))
     
     #Mask and thr operations
@@ -197,8 +217,7 @@ def flat_mask(
         mask = core.std.Expr([mask_fine, mask_medium], "x y min")
         mask = mask.std.Invert().std.Minimum().std.Maximum()
         if debug:
-            print(f"Frame {n}: stdev={stdev}, sigma={bm3d_sigma}, thr_high={thr}")
-        mask = mask.std.Median().std.Median()
-        return mask
+            print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
+        return mask.std.Median().std.Median().std.Median().std.Median().std.Median().std.Median()
 
     return core.std.FrameEval(clip=y, eval=select_mask)
