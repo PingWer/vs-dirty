@@ -4,7 +4,7 @@ except ImportError:
     raise ImportError('Vapoursynth R70> is required. Download it via: pip install vapoursynth')
 
 try:
-    from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
+    from vsdenoise import MVToolsPresets, Prefilter, mc_degrain, BM3DCuda, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, Profile, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT
     from gadMask import *
 except ImportError:
@@ -86,7 +86,7 @@ def intensive_adaptive_denoiser (
 
     #Denoise
     mvtools = MVTools(clip)
-    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
+    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr1)
     luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
 
@@ -112,7 +112,7 @@ def intensive_adaptive_denoiser (
     #Luma BM3D
     if precision:
         mvtools = MVTools(luma)
-        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.DCT)
         ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr2)
 
     denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr2, ref=ref, planes=0, profile=Profile.HIGH)
@@ -128,12 +128,12 @@ def adaptive_denoiser (
     tr1: int = 3,
     tr2: int = 2,
     sigma: int = 12,
-    luma_mask_weaken1: float = 0.85,
+    luma_mask_weaken: float = 0.85,
     luma_mask_thr: float = 50,
-    luma_mask_weaken2: float | None = None,
     precision: bool = False,
-    mask_type: int = 2,
-    show_mask: int = 0
+    show_mask: int = 0,
+    flat_penalty: float = 0.5,
+    texture_penalty: float = 1.0
 ) -> vs.VideoNode: 
     """
     Adaptive Denoise with default parameters for film scans (16mm).
@@ -165,45 +165,39 @@ def adaptive_denoiser (
     
     core = vs.core
 
-    if precision == True and luma_mask_weaken2 == None:
-        luma_mask_weaken2 = luma_mask_weaken1
-
     if clip.format.color_family not in {vs.YUV}:
         raise ValueError('GAD: only YUV formats are supported')
 
     if clip.format.bits_per_sample != 16:
         clip = clip.fmtc.bitdepth(bits=16)
 
-    if (mask_type == 0):
-        lumamask = luma_mask(clip)
-    elif (mask_type == 1):
-        lumamask = luma_mask_man(clip)
-    else:
-        lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
-    
-    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken1} *")
+    lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
+    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
+
+    if precision:
+        flatmask = flat_mask(clip)
+
+        darken_luma_mask = core.std.Expr(
+        [darken_luma_mask, flatmask],
+        f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
+
+        darken_luma_mask = darken_luma_mask.std.BoxBlur(hradius=2, vradius=2) #Maybe this is not needed, but it helps to smooth the mask a bit (Gaus better?).
+        if show_mask == 1:
+            return darken_luma_mask
+        
     if show_mask == 1:
         return darken_luma_mask
 
     #Denoise
     mvtools = MVTools(clip)
-    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr1)
     luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
 
     #Luma BM3D
     if precision:
-        if (mask_type == 0):
-            lumamask = luma_mask(luma)
-        elif (mask_type == 1):
-            lumamask = luma_mask_man(luma)
-        else:
-            lumamask = luma_mask_ping(luma, thr=luma_mask_thr)
-        darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken2} *")
-        if show_mask == 2:
-            return darken_luma_mask
         mvtools = MVTools(luma)
-        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, truemotion=MotionMode.SAD, dct=SADMode.DCT)
+        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.DCT)
         ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr2)
 
     denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr2, ref=ref, planes=0, profile=Profile.HIGH)
