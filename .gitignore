@@ -4,3 +4,4 @@ test.vpy
 .vsjet
 __pycache__
 *ffmpeg*
+Parser/mb_parsed_grid.txt
