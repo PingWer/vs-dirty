@@ -69,25 +69,24 @@ def intensive_adaptive_denoiser (
     lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
     darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
 
+    #Denoise
+    mvtools = MVTools(clip)
+    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
+    ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
+    luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
+
     if precision:
-        flatmask = flat_mask(clip, sigma=sigma*2, speed=speed, dntype=1)
+        flatmask = flat_mask(clip, sigma=sigma*2, speed=speed, dntype=1, ref=ref)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
         f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
 
         darken_luma_mask = darken_luma_mask.std.BoxBlur(hradius=2, vradius=2) #Maybe this is not needed, but it helps to smooth the mask a bit (Gauss better?).
-        if show_mask == 1:
-            return darken_luma_mask
         
     if show_mask == 1:
         return darken_luma_mask
 
-    #Denoise
-    mvtools = MVTools(clip)
-    vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
-    luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
 
     #Chroma NLMeans
     chroma_denoised = nl_means(clip, tr=tr, strength=chroma_strength, ref=ref, planes=[1,2])
@@ -110,12 +109,6 @@ def intensive_adaptive_denoiser (
         return v_mask
     elif show_mask == 3:
         return u_mask
-
-    #Luma BM3D
-    if precision:
-        mvtools = MVTools(luma)
-        vectors = mvtools.analyze(blksize=16, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.DCT)
-        ref = mc_degrain(luma, prefilter=Prefilter.DFTTEST, preset=MVToolsPresets.HQ_SAD, thsad=thsad, vectors=vectors, tr=tr)
 
     denoised = BM3DCuda.denoise(luma, sigma=sigma, tr=tr, ref=ref, planes=0, profile=Profile.HIGH)
     luma_final = core.std.MaskedMerge(denoised, luma, darken_luma_mask, planes=0)
@@ -145,7 +138,7 @@ def adaptive_denoiser (
     If precision = True, BM3DCuda receives a new mc_degrain reference based on the already cleaned clip (slower).
 
     Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
-    Note: Luma masks are more sensitive to variations than the sigma value for the final result.
+    Note: Luma masks are more sensitive to variations than the sigma value for the final resdult.
 
     :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with fmtc).
     :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).

@@ -134,6 +134,7 @@ def flat_mask(
         debug: bool = False,
         dntype: int = 1,
         speed: int = 1,
+        ref: vs.VideoNode = None
         )-> vs.VideoNode:
     """
     This custom flat mask (Made By PingWer) is more conservative then JET one, so when a white flat area exit is 99% a real flat area (only if you use reasonable parameters).
@@ -177,12 +178,19 @@ def flat_mask(
         elif speed == 2:
             profiles = Profile.FAST
 
-        y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, planes=0, profile=profiles)
+        if ref is None:
+            y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, planes=0, profile=profiles)
+        else:
+            y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, ref=ref, planes=0, profile=profiles)
+        
 
     elif dntype == 2:
         if sigma is None:
             sigma = 0.8
-        y_dn = nl_means(y, strength=sigma, tr=tr, planes=0)
+        if ref is None:
+            y_dn = nl_means(y, strength=sigma, tr=tr, planes=0)
+        else:
+            y_dn = nl_means(y, strength=sigma, tr=tr, ref=ref, planes=0)
         y_dn= y_dn.std.Median().std.Median()
     else:
         raise ValueError("dntype must be 1 (BM3D) or 2 (NLM)")
