@@ -1,12 +1,13 @@
 try:
     import vapoursynth as vs
 except ImportError:
-    raise ImportError('Vapoursynth R70> is required. Download it via: pip install vapoursynth')
+    raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
 
 try:
     from vsdenoise import BM3DCuda, nl_means, Profile
     from vstools import get_y
     import math
+    from typing import Optional
 except ImportError:
     raise ImportError('vsdenoise, vstools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
@@ -127,9 +128,9 @@ def flat_mask(
         clip: vs.VideoNode, 
         blur_radius: int = 1, 
         tr: int = 1, 
+        sigma: Optional[float] = None, 
+        edge_thr_high: Optional[float] = None, 
         edge_thr_low: float = 0.001, 
-        sigma: float = None, 
-        edge_thr_high: float = None,
         debug: bool = False,
         dntype: int = 1,
         speed: int = 1,
@@ -152,7 +153,7 @@ def flat_mask(
     """
     #TODO
     #supporto a tr>1 con il passaggio di ref e vectors (controllare con ifistance)
-    #controllo se esiste un Y plane oppurese è già grayscale
+    #controllo se esiste un Y plane oppure se è già grayscale
 
     core = vs.core
 
@@ -166,6 +167,8 @@ def flat_mask(
     sq_clip = core.std.Expr([y], "x x *")
     stats_sq = sq_clip.std.PlaneStats()
 
+    profiles = Profile.FAST #Serve necessariamente un default per evitare errori
+    
     if dntype == 1:
         if sigma is None:
             sigma = 5.0
@@ -175,6 +178,7 @@ def flat_mask(
             profiles = Profile.FAST
 
         y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, planes=0, profile=profiles)
+
     elif dntype == 2:
         if sigma is None:
             sigma = 0.8
