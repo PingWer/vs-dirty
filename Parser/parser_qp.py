@@ -18,8 +18,10 @@ def parse_qp_log(log_path):
                 if current_frame:
                     frames.append(current_frame)
                 
+                match = re.search(r"New frame, type: (\w+)", line)
+                frame_type = match.group(1) if match else "UNKNOWN"
                 current_frame = {
-                    'type': re.search(r"New frame, type: (\w+)", line).group(1),
+                    'type': frame_type,
                     'qp_grid': [],
                     'status': 'VALID'
                 }
@@ -50,9 +52,9 @@ def parse_qp_log(log_path):
                     if len(qp) == 2 and qp.isdigit():
                         qp_values.append(int(qp))
                 
-                if qp_values:
+                if qp_values and current_frame is not None:
                     current_frame['qp_grid'].append(qp_values)
-                elif current_frame['qp_grid']:
+                elif current_frame is not None and current_frame['qp_grid']:
                     current_frame['status'] = 'CORRUPTED'
 
         if current_frame:

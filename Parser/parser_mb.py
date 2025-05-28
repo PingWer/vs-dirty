@@ -5,7 +5,13 @@ def parse_mb_log(log_path):
     current_frame = None
     parsing_started = False
     skip_next = False
-    valid_mb_chars = {'I', 'P', 'B', 'S', 'i', 'd', 'D', '>', '<', 'X'}
+
+    base_mb_chars = {'I', 'P', 'B', 'S', 'i', 'd', 'D', '>', '<', 'X'}
+    extra_mb_chars = {'|', '-', '+', '|'}
+    valid_mb_chars = {
+        'I', 'P', 'B', 'S', 'i', 'd', 'D', '>', '<', 'X',
+        ">|", ">-", ">+", "X-", "X+", "X|", "<|", "<-"
+    }
 
     with open(log_path, 'r', errors='ignore') as f:
         for line in f:
@@ -15,14 +21,24 @@ def parse_mb_log(log_path):
                 else:
                     continue
 
+            # Salva il nal_unit_type e nal_ref_idc del frame corrente
+            if "nal_unit_type:" in line:
+                if current_frame is not None:
+                    # Rimuove il contesto AVC
+                    clean_nal_info = re.sub(r'\[.*?\]', '', line).strip()
+                    current_frame['nal_info'] = clean_nal_info
+                continue
+
             if "New frame, type: " in line:
                 if current_frame:
                     frames.append(current_frame)
                 
+                match = re.search(r"New frame, type: (\w+)", line)
                 current_frame = {
-                    'type': re.search(r"New frame, type: (\w+)", line).group(1),
+                    'type': match.group(1) if match else "UNKNOWN",
                     'grid': [],
-                    'status': 'VALID'
+                    'status': 'VALID',
+                    'nal_info': ''
                 }
                 skip_next = True
                 continue
@@ -36,14 +52,26 @@ def parse_mb_log(log_path):
             content = parts[-1].strip() if len(parts) > 1 else line.strip()
 
             if re.match(r'^\s*\d+', content):
-                # Pulizia avanzata
-                clean_content = re.sub(r'^\s*\d+\s*', '', content)  # Rimuove numero iniziale
-                clean_content = re.sub(r'[^A-Za-z> <IX]', '', clean_content)  # Rimuove caratteri non validi
-                mb_types = [c for c in clean_content if c in valid_mb_chars]
-                
+                clean_content = re.sub(r'^\s*\d+\s*', '', content)
+                tokens = clean_content.split()
+                mb_types = []
+                i = 0
+                while i < len(tokens):
+                    token = tokens[i]
+                    if token in base_mb_chars and i + 1 < len(tokens) and tokens[i + 1] in extra_mb_chars:
+                        combined = token + tokens[i + 1]
+                        if combined in valid_mb_chars:
+                            mb_types.append(combined)
+                            i += 2
+                            continue
+                    if token in valid_mb_chars:
+                        mb_types.append(token)
+                    i += 1
+
                 if mb_types:
-                    current_frame['grid'].append(mb_types)
-                elif current_frame['grid']:
+                    if current_frame is not None:
+                        current_frame['grid'].append(mb_types)
+                elif current_frame is not None and current_frame['grid']:
                     current_frame['status'] = 'CORRUPTED'
 
         if current_frame:
@@ -61,7 +89,7 @@ def save_grid_report(frames, output_file):
 # il ";" serve per i futuri parser per fargli skippare le righe
     with open(output_file, 'w') as f:
         f.write(";Macroblock Analysis Report\n")
-        f.write(";="*40 + "\n")
+        f.write(";"+"="*40 + "\n")
         f.write(f";Total Frames Processed: {stats['total']}\n")
         f.write(f";Valid Frames: {stats['valid']}\n")
         f.write(f";Corrupted Frames: {stats['corrupted']}\n")
@@ -70,7 +98,8 @@ def save_grid_report(frames, output_file):
 
         for idx, frame in enumerate(frames):
             status = f" [{frame['status']}]" if frame['status'] != 'VALID' else ""
-            f.write(f"Frame {idx+1} - Type: {frame['type']}{status}\n")
+            nal_info = f" {frame['nal_info']}" if frame.get('nal_info') else ""
+            f.write(f"Frame {idx+1} - Type: {frame['type']}{status}{nal_info}\n")
             
             if frame['grid']:
                 for y, row in enumerate(frame['grid'], 1):
@@ -82,7 +111,7 @@ def save_grid_report(frames, output_file):
 
 if __name__ == "__main__":
     import sys
-    input_log = sys.argv[1] if len(sys.argv) > 1 else "debug_frame.txt"
+    input_log = sys.argv[1] if len(sys.argv) > 1 else "debug_framemb.txt"
     output_file = sys.argv[2] if len(sys.argv) > 2 else "mb_parsed_grid.txt"
     
     frames = parse_mb_log(input_log)
