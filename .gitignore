@@ -4,4 +4,10 @@ test.vpy
 .vsjet
 __pycache__
 *ffmpeg*
-Parser/mb_parsed_grid.txt
+*.txt
+*.mkv
+*.avc
+*.mp4
+*.x264
+*.h264
+*.264
