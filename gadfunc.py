@@ -17,8 +17,8 @@ if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akar
 def intensive_adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
-    tr: int = 1,
-    sigma: int = 12,
+    tr: int = 2,
+    sigma: float = 12,
     luma_mask_weaken: float = 0.85,
     luma_mask_thr: float = 50,
     chroma_strength: float = 1.0,
@@ -89,14 +89,17 @@ def intensive_adaptive_denoiser (
 
 
     #Chroma NLMeans
-    chroma_denoised = nl_means(clip, tr=tr, strength=chroma_strength, ref=ref, planes=[1,2])
+    if chroma_strength <= 0:
+        chroma_denoised = clip
+    else:
+        chroma_denoised = nl_means(clip, tr=tr, strength=chroma_strength, ref=ref, planes=[1,2])
     
     #TODO
     #chroma mask fine tuning
     v_mask = None #Per evitare UnboundLocalError
     u_mask = None
 
-    if chroma_masking:
+    if chroma_masking or chroma_strength<=0:
         v=get_v(clip)
         v_mask= luma_mask_man(v,t=1.5,s=2, a=0)
         v_masked = core.std.MaskedMerge(get_v(chroma_denoised), v, core.std.Invert(v_mask))
@@ -122,7 +125,7 @@ def adaptive_denoiser (
     thsad: int = 800,
     tr1: int = 3,
     tr2: int = 2,
-    sigma: int = 12,
+    sigma: float = 12,
     luma_mask_weaken: float = 0.85,
     luma_mask_thr: float = 50,
     precision: bool = False,
