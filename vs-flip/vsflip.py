@@ -6,7 +6,7 @@ except ImportError:
 import flip_evaluator as flip
 from matplotlib.pyplot import imsave
 import numpy as np
-from vstools import frame2clip
+from weakref import WeakValueDictionary
 
 core = vs.core
 
@@ -14,6 +14,36 @@ FLIPDICT = {
         "vc": [0.5, 3840, 0.6],
         "tonemapper": "ACES"
     }
+
+_f2c_cache = WeakValueDictionary[int, vs.VideoNode]()
+
+def frame2clip(frame: vs.VideoFrame) -> vs.VideoNode:
+    """
+    Original code from [vsjetpack](https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack/blob/main/vstools/functions/utils.py#L369)
+
+    Convert a VideoFrame to a VideoNode.
+
+    :param frame:       Input frame.
+
+    :return:            1-frame long VideoNode of the input frame.
+    """
+
+    key = hash((frame.width, frame.height, frame.format.id))
+
+    if _f2c_cache.get(key, None) is None:
+        _f2c_cache[key] = blank_clip = vs.core.std.BlankClip(
+            None, frame.width, frame.height,
+            frame.format.id, 1, 1, 1,
+            [0] * frame.format.num_planes,
+            True
+        )
+    else:
+        blank_clip = _f2c_cache[key]
+
+    frame_cp = frame.copy()
+
+    return vs.core.std.ModifyFrame(blank_clip, blank_clip, lambda n, f: frame_cp)
+
 
 def frame_to_numpyArray(frame: vs.VideoNode) -> np.ndarray:
     """
