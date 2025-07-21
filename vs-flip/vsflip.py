@@ -142,14 +142,55 @@ def vsflip_frame (
     frame= numpy_to_frame(flipErrorMap)
     return frame2clip(frame)
 
-def vsflipVideo(
-        ref_clip:vs.VideoNode,
-        test_clip:vs.VideoNode,
-        range:str="LDR",
-)-> vs.VideoNode:
-    
+#TODO
+# Scegliere la clip più breve per evitare errori strani
+# Rafforzare i controllo degli errori
+# Inserire la metrica di flip tra le properties del frame
 
-    return True
+def vsflip_video(
+        ref_clip: vs.VideoNode,
+        test_clip: vs.VideoNode,
+        range: str = "LDR",
+        parameters: dict = {"vc": [0.5, 3840, 0.6], "tonemapper": "ACES"},
+        debug: bool = False,
+        allignment_to_ref: int = 0
+) -> vs.VideoNode:
+    """
+    Compare two videos using the FLIP metric frame by frame. Darker values indicate a better match.
+    Both clips must have the same number of frames or at least be perfectly aligned.
+    
+    :param ref_clip:                The reference VapourSynth VideoNode.
+    :param test_clip:               The test VapourSynth VideoNode.
+    :param range:                   The range of the video, either "LDR" or "HDR".
+    :param parameters:              A dictionary of parameters for the FLIP evaluation. Default is {"vc": [0.5, 3840, 0.6], "tonemapper": "ACES"}).
+    :param debug:                   If True, prints debug information. Default is False.
+    :param allignment_to_ref:       The number of frames to align the test clip to the reference clip. Default is 0.
+                                    Ensure both clip are perfectly aligned, because using this offset could lead to error. 
+    :return:                        A VapourSynth VideoNode containing the FLIP error map for each frame in GrayScaleS.
+    """
+    
+    blank = core.std.BlankClip(
+        format=vs.GRAYS,
+        width=ref_clip.width,
+        height=ref_clip.height,
+        length=ref_clip.num_frames,
+        fpsnum=ref_clip.fps_num,
+        fpsden=ref_clip.fps_den
+    ) 
+
+    def select_flip(n: int) -> vs.VideoNode:
+        return vsflip_frame(
+            ref_clip,
+            test_clip,
+            range=range,
+            ref_frame=n,
+            test_frame=n+allignment_to_ref,
+            parameters=parameters,
+            save_flip_error_mask=False,
+            debug=debug
+        )
+    return core.std.FrameEval(clip=blank, eval=select_flip)
+
 
 
 
