@@ -87,7 +87,7 @@ def vsflip_frame (
         debug: bool = False
 )-> vs.VideoNode:
     """
-    Compare two frames using the FLIP metric.
+    Compare two frames using the FLIP metric. Darker values indicate a better match.
 
     :param ref_clip:                The reference VapourSynth VideoNode.
     :param test_clip:               The test VapourSynth VideoNode.   
@@ -135,7 +135,9 @@ def vsflip_frame (
     if save_flip_error_mask:
         imsave(f"vsflip_error_map_{ref_frame}_{test_frame}.png", flipErrorMap, cmap="gray")
 
-    print(flipErrorMap.max(), flipErrorMap.min())
+    if debug:
+        print("numpy array max and min values (correct value should be between 1-0):")
+        print(flipErrorMap.max(), flipErrorMap.min())
 
     frame= numpy_to_frame(flipErrorMap)
     return frame2clip(frame)
