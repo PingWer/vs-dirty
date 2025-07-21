@@ -6,72 +6,40 @@ except ImportError:
 import flip_evaluator as flip
 from matplotlib.pyplot import imsave
 import numpy as np
-import ctypes
 from vstools import frame2clip
 
 core = vs.core
 
+FLIPDICT = {
+        "vc": [0.5, 3840, 0.6],
+        "tonemapper": "ACES"
+    }
+
 def frame_to_numpyArray(frame: vs.VideoNode) -> np.ndarray:
     """
-    Convert a VapourSynth 1 frame VideoNode to a NumPy array.
+    Convert a VapourSynth 1-frame long VideoNode to a NumPy array.
     
-    :param frame: The VapourSynth 1 frame VideoNode to convert.
+    :param frame: The VapourSynth 1-frame long VideoNode to convert.
     :return: A NumPy array representation of the frame.
     """
     frame = frame.get_frame(0)
-    height, width = frame.height, frame.width
 
-    def read_plane(plane):
-        ptr = frame.get_read_ptr(plane)
-        stride = frame.get_stride(plane)
-        row_size = width * 4 
+    return  np.stack([np.asarray(frame[i]) for i in range(frame.format.num_planes)], axis=-1)
 
-        c_ubyte_p = ctypes.POINTER(ctypes.c_ubyte)
-        byte_ptr = ctypes.cast(ptr, c_ubyte_p)
 
-        buf = bytearray(height * row_size)
-
-        for y in range(height):
-            src_offset = y * stride
-            dst_offset = y * row_size
-            ctypes.memmove(
-                (ctypes.c_ubyte * row_size).from_buffer(buf, dst_offset),
-                ctypes.addressof(byte_ptr.contents) + src_offset,
-                row_size
-            )
-        return np.frombuffer(buf, dtype=np.float32).reshape((height, width))
-
-    r = read_plane(0)
-    g = read_plane(1)
-    b = read_plane(2)
-
-    return np.stack((r, g, b), axis=-1)
-
-def numpy_to_frame(np_array: np.ndarray) -> vs.VideoFrame:
+def numpy_to_frame(np_array: np.ndarray, blank_clip1 : vs.VideoNode) -> vs.VideoFrame:
     """
-    Convert a a NumPy array to VapourSynth VideoFrame.
-    
-    :param np_array: A 2D NumPy array representation of the frame .
-    :return: The VapourSynth VideoFrame in GrayScaleS.
+    Convert a 2D NumPy array (float32) to VapourSynth VideoFrame in GRAYS.
     """
     assert np_array.ndim == 2 and np_array.dtype == np.float32, "Input must be a 2D NumPy array of type float32."
-    height, width = np_array.shape
-
-    clip = core.std.BlankClip(format=vs.GRAYS, width=width, height=height, length=1)
     
-    frame = clip.get_frame(0).copy()
+    if blank_clip1 is None:
+        height, width = np_array.shape
+        blank_clip1 = core.std.BlankClip(format=vs.GRAYS, width=width, height=height, length=1) 
 
-    ptr = frame.get_write_ptr(0)
-    stride = frame.get_stride(0)
+    frame = blank_clip1.get_frame(0).copy()
 
-    c_ubyte_p = ctypes.POINTER(ctypes.c_ubyte)
-    dst = ctypes.cast(ptr, c_ubyte_p)
-
-    row_bytes = width * 4
-    for y in range(height):
-        row = np_array[y].tobytes()
-        offset = y * stride
-        ctypes.memmove(ctypes.addressof(dst.contents) + offset, row, row_bytes)
+    np.copyto(np.asarray(frame[0]), np_array)
 
     return frame
 
@@ -82,9 +50,10 @@ def vsflip_frame (
         range:str="LDR",
         ref_frame: int = 0,
         test_frame: int = 0,
-        parameters: dict = {"vc": [0.5, 3840, 0.6], "tonemapper": "ACES"},
+        parameters: dict = FLIPDICT,
         save_flip_error_mask: bool = False,
-        debug: bool = False
+        debug: bool = False,
+        blank: vs.VideoNode = None
 )-> vs.VideoNode:
     """
     Compare two frames using the FLIP metric. Darker values indicate a better match.
@@ -97,7 +66,8 @@ def vsflip_frame (
     :param parameters:              A dictionary of parameters for the FLIP evaluation. Default is {"vc": [0.5, 3840, 0.6], "tonemapper": "ACES"}).
     :param save_flip_error_mask:    If True, saves the FLIP error mask as png in the script folder. Default is False.
     :param debug:                   If True, prints debug information. Default is False.
-    :return:                        A VapourSynth 1 frame VideoNode containing the FLIP error map in GrayScaleS.
+    :param blank:                   Only for devoloper use.
+    :return:                        A VapourSynth 1-frame long VideoNode containing the FLIP error map in GrayScaleS.
     """
     
     if range not in ["LDR", "HDR"]:
@@ -112,46 +82,51 @@ def vsflip_frame (
         print("\nTest Frame Properties:\n")
         print(frame_test)
 
-    if frame_ref.format.id != vs.RGBS or frame_test.format.id != vs.RGBS:
-        frame_ref= core.resize.Bicubic(frame_ref, format=vs.RGBS)
-        frame_test = core.resize.Bicubic(frame_test, format=vs.RGBS)
+    try:
+        if frame_ref.format.id != vs.RGBS or frame_test.format.id != vs.RGBS:
+            frame_ref= core.resize.Bicubic(frame_ref, format=vs.RGBS)
+            frame_test = core.resize.Bicubic(frame_test, format=vs.RGBS)
 
-    np_ref = frame_to_numpyArray(frame_ref)
-    np_test = frame_to_numpyArray(frame_test)
+        np_ref = frame_to_numpyArray(frame_ref)
+        np_test = frame_to_numpyArray(frame_test)
 
-    flipErrorMap, meanFLIPError, parameters = flip.evaluate(np_ref, np_test, range, applyMagma=False, parameters=parameters)
-    flipErrorMap = np.squeeze(flipErrorMap)
+        flipErrorMap, meanFLIPError, parameters = flip.evaluate(np_ref, np_test, range, applyMagma=False, parameters=parameters)
+        flipErrorMap = np.squeeze(flipErrorMap)
 
-    if debug:
-        print("Mean FLIP error: ", round(meanFLIPError, 6), "\n")
+        if debug:
+            print("Mean FLIP error: ", round(meanFLIPError, 6), "\n")
 
-        print("The following parameters were used:")
-        for key in parameters:
-            val = parameters[key]
-            if isinstance(val, float):
-                val = round(val, 4)
-            print("\t%s: %s" % (key, str(val)))
+            print("The following parameters were used:")
+            for key in parameters:
+                val = parameters[key]
+                if isinstance(val, float):
+                    val = round(val, 4)
+                print("\t%s: %s" % (key, str(val)))
 
-    if save_flip_error_mask:
-        imsave(f"vsflip_error_map_{ref_frame}_{test_frame}.png", flipErrorMap, cmap="gray")
+        if save_flip_error_mask:
+            imsave(f"vsflip_error_map_{ref_frame}_{test_frame}.png", flipErrorMap, cmap="gray")
 
-    if debug:
-        print("numpy array max and min values (correct value should be between 1-0):")
-        print(flipErrorMap.max(), flipErrorMap.min())
+        if debug:
+            print("numpy array max and min values (correct value should be between 1-0):")
+            print(flipErrorMap.max(), flipErrorMap.min())
 
-    frame= numpy_to_frame(flipErrorMap)
-    return frame2clip(frame)
+        frame= numpy_to_frame(flipErrorMap, blank_clip1=blank)
+        
+        # Add meanFLIPError to frame properties
+        frame.props["meanFLIPError"] = float(meanFLIPError)
+        
+        return frame2clip(frame)
 
-#TODO
-# Scegliere la clip più breve per evitare errori strani
-# Rafforzare i controllo degli errori
-# Inserire la metrica di flip tra le properties del frame
+    except Exception as e:
+        print(f"Error processing frame {ref_frame} and {test_frame}: {e}")
+        return blank # Return a blank frame in case of error
+
 
 def vsflip_video(
         ref_clip: vs.VideoNode,
         test_clip: vs.VideoNode,
         range: str = "LDR",
-        parameters: dict = {"vc": [0.5, 3840, 0.6], "tonemapper": "ACES"},
+        parameters: dict = FLIPDICT,
         debug: bool = False,
         allignment_to_ref: int = 0
 ) -> vs.VideoNode:
@@ -169,44 +144,41 @@ def vsflip_video(
     :return:                        A VapourSynth VideoNode containing the FLIP error map for each frame in GrayScaleS.
     """
     
+    # just in case the user is tard
+    min_length = min(ref_clip.num_frames, test_clip.num_frames - allignment_to_ref)
+
     blank = core.std.BlankClip(
         format=vs.GRAYS,
         width=ref_clip.width,
         height=ref_clip.height,
-        length=ref_clip.num_frames,
+        length=min_length,
         fpsnum=ref_clip.fps_num,
         fpsden=ref_clip.fps_den
     ) 
 
+    blank1 = core.std.BlankClip(
+        format=vs.GRAYS,
+        width=ref_clip.width,
+        height=ref_clip.height,
+        length=1,
+    ) 
+
     def select_flip(n: int) -> vs.VideoNode:
-        return vsflip_frame(
-            ref_clip,
-            test_clip,
-            range=range,
-            ref_frame=n,
-            test_frame=n+allignment_to_ref,
-            parameters=parameters,
-            save_flip_error_mask=False,
-            debug=debug
-        )
+        try:
+            return vsflip_frame(
+                ref_clip,
+                test_clip,
+                range=range,
+                ref_frame=n,
+                test_frame=n+allignment_to_ref,
+                parameters=parameters,
+                save_flip_error_mask=False,
+                debug=debug,
+                blank=blank1
+            )
+        except Exception as e:
+            print(f"Error processing frame {n}: {e}")
+            return blank1 # Return a blank frame in case of error
+
     return core.std.FrameEval(clip=blank, eval=select_flip)
 
-
-
-
-# np_ref = r"vs-flip\ref2.png"
-# np_test = r"vs-flip\test2.png"
-
-# flipErrorMap, meanFLIPError, parameters = flip.evaluate(np_ref, np_test, "LDR", applyMagma=False)
-# flipErrorMap = np.squeeze(flipErrorMap)
-
-# print("Mean FLIP error: ", round(meanFLIPError, 6), "\n")
-
-# print("The following parameters were used:")
-# for key in parameters:
-#     val = parameters[key]
-#     if isinstance(val, float):
-#         val = round(val, 4)
-#     print("\t%s: %s" % (key, str(val)))
-
-# plt.imsave("flip_error_map2.png", flipErrorMap, cmap="gray")
