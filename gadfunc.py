@@ -51,7 +51,7 @@ def intensive_adaptive_denoiser (
     :param luma_mask_weaken2:   Only used if precision = True. Controls how much dark spots should be denoised on BM3DCuda.
                                 Lower values mean stronger denoise. Recommended values: 0.6-0.9
     :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Recommended values: 0.5-2
-    :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (99% accuracy).
+    :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
     :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True) .
 
