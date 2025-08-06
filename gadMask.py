@@ -4,7 +4,7 @@ except ImportError:
     raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
 
 try:
-    from vsdenoise import BM3DCuda, nl_means, Profile
+    from vsdenoise import bm3d, nl_means
     from vstools import get_y
     import math
     from typing import Optional
@@ -168,20 +168,22 @@ def flat_mask(
     sq_clip = core.std.Expr([y], "x x *")
     stats_sq = sq_clip.std.PlaneStats()
 
-    profiles = Profile.FAST #Serve necessariamente un default per evitare errori
+    profiles = bm3d.Profile.FAST #Serve necessariamente un default per evitare errori
+    refine=2
     
     if dntype == 1:
         if sigma is None:
             sigma = 5.0
         if speed == 1:
-            profiles = Profile.HIGH
+            profiles = bm3d.Profile.HIGH
         elif speed == 2:
-            profiles = Profile.FAST
+            profiles = bm3d.Profile.FAST
+            refine=3
 
         if ref is None:
-            y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, planes=0, profile=profiles)
+            y_dn = bm3d(y, sigma=sigma, refine=refine, tr=tr, planes=0, profile=profiles)
         else:
-            y_dn = BM3DCuda.denoise(y, sigma=sigma, tr=tr, ref=ref, planes=0, profile=profiles)
+            y_dn = bm3d(y, sigma=sigma, tr=tr, refine=refine, ref=ref, planes=0, profile=profiles)
         
 
     elif dntype == 2:
