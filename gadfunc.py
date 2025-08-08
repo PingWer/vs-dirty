@@ -113,7 +113,7 @@ def intensive_adaptive_denoiser (
     elif show_mask == 3:
         return u_mask
 
-    denoised = bm3d(luma, sigma=sigma, refine=2, tr=tr, ref=ref, planes=0, profile=bm3d.Profile.HIGH)
+    denoised = bm3d(luma, sigma=sigma, refine=2, tr=tr, ref=get_y(ref), planes=0, profile=bm3d.Profile.HIGH)
     luma_final = core.std.MaskedMerge(denoised, luma, darken_luma_mask, planes=0)
 
     final = core.std.ShufflePlanes(clips=[luma_final, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
