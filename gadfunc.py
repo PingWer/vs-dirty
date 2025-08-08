@@ -76,7 +76,7 @@ def intensive_adaptive_denoiser (
     luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
 
     if precision:
-        flatmask = flat_mask(clip, sigma=sigma*2, speed=speed, dntype=1, ref=ref)
+        flatmask = flat_mask(clip, sigma=sigma*2, speed=speed, dntype=1, ref=get_y(ref))
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
