@@ -72,7 +72,7 @@ def intensive_adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = depth(core.bm3dcuda.BM3D(depth(clip, 32), sigma=sigma*2, block_step=6, bm_range=9), 16)
+    mfilter = depth(core.bm3dcuda_rtc.BM3D(depth(clip, 32), sigma=sigma*2, block_step=6, bm_range=9), 16)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
     if precision:
@@ -84,7 +84,7 @@ def intensive_adaptive_denoiser (
         
         darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
     
-    denoised = depth(core.bm3dcuda.BM3D(get_y(depth(ref, 32)), sigma=sigma, block_step=3, bm_range=16), 16)
+    denoised = depth(core.bm3dcuda_rtc.BM3D(get_y(depth(ref, 32)), sigma=sigma, block_step=3, bm_range=16), 16)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
 
     if show_mask == 1:

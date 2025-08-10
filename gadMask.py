@@ -182,9 +182,9 @@ def flat_mask(
             profiles = bm3d.Profile.FAST
 
         if ref is None:
-            y_dn = depth(core.bm3dcuda.BM3D(depth(y, 32), sigma=sigma, block_step=3, bm_range=15), 16)
+            y_dn = depth(core.bm3dcuda_rtc.BM3D(depth(y, 32), sigma=sigma, block_step=3, bm_range=16), 16)
         else:
-            y_dn = depth(core.bm3dcuda.BM3D(depth(y, 32), sigma=sigma, ref=ref, block_step=3, bm_range=15), 16)
+            y_dn = depth(core.bm3dcuda_rtc.BM3D(depth(y, 32), sigma=sigma, ref=ref, block_step=3, bm_range=16), 16)
         
 
     elif dntype == 2:
