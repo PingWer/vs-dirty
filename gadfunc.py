@@ -6,7 +6,7 @@ except ImportError:
 try:
     from vsdenoise import Prefilter, mc_degrain, bm3d, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT
-    from vsmasktools import Morpho, XxpandMode
+    from vsmasktools import Morpho
     from gadMask import *
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
@@ -77,6 +77,7 @@ def intensive_adaptive_denoiser (
 
     if precision:
         flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1)
+        flatmask.set_output(2)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],

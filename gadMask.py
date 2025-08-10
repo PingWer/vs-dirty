@@ -6,10 +6,11 @@ except ImportError:
 try:
     from vsdenoise import bm3d, nl_means
     from vstools import get_y
+    from vsmasktools import Morpho
     import math
     from typing import Optional
 except ImportError:
-    raise ImportError('vsdenoise, vstools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+    raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
 
 
@@ -197,8 +198,10 @@ def flat_mask(
     else:
         raise ValueError("dntype must be 1 (BM3D) or 2 (NLM)")
     
+    y_dn.set_output(2)
     blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
     blurred2 = core.std.BoxBlur(blurred1, hradius=blur_radius * 2, vradius=blur_radius * 2)
+
     edges = core.std.Expr([
         y_dn.std.Sobel(),
         blurred1.std.Sobel(),
@@ -228,10 +231,12 @@ def flat_mask(
         stdev = get_stdev(avg, sq_avg)
         thr = edge_thr_high if edge_thr_high is not None else auto_thr_high(stdev)
         mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
-        mask = core.std.Expr([mask_fine, mask_medium], "x y min")
-        mask = mask.std.Invert().std.Minimum().std.Maximum()
+        mask = core.std.Expr([mask_fine, mask_medium], "x y min").std.Invert()
+        mask = mask.std.Minimum().std.Maximum()
         if debug:
             print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
+        
         return mask.std.Median().std.Median().std.Median().std.Median().std.Median().std.Median()
+
 
     return core.std.FrameEval(clip=y, eval=select_mask)
