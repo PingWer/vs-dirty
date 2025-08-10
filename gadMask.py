@@ -198,7 +198,6 @@ def flat_mask(
     else:
         raise ValueError("dntype must be 1 (BM3D) or 2 (NLM)")
     
-    y_dn.set_output(2)
     blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
     blurred2 = core.std.BoxBlur(blurred1, hradius=blur_radius * 2, vradius=blur_radius * 2)
 

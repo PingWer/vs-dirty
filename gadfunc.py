@@ -5,7 +5,7 @@ except ImportError:
 
 try:
     from vsdenoise import Prefilter, mc_degrain, bm3d, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
-    from vstools import get_y, get_u, get_v, PlanesT
+    from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
     from gadMask import *
 except ImportError:
@@ -64,7 +64,7 @@ def intensive_adaptive_denoiser (
         raise ValueError('GAD: only YUV formats are supported')
 
     if clip.format.bits_per_sample != 16:
-        clip = clip.fmtc.bitdepth(bits=16)
+        clip = depth(clip, 16)
 
     lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
     darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
@@ -77,13 +77,12 @@ def intensive_adaptive_denoiser (
 
     if precision:
         flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1)
-        flatmask.set_output(2)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
         f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
         
-        darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
+        #darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
     
     denoised = bm3d(get_y(ref), sigma=sigma, planes=0, profile=bm3d.Profile.HIGH)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
