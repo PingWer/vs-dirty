@@ -6,9 +6,10 @@ except ImportError:
 try:
     from vsdenoise import Prefilter, mc_degrain, bm3d, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT
+    from vsmasktools import Morpho, XxpandMode
     from gadMask import *
 except ImportError:
-    raise ImportError('vsdenoise, vstools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+    raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
 core = vs.core
 if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
@@ -19,7 +20,7 @@ def intensive_adaptive_denoiser (
     thsad: int = 800,
     tr: int = 2,
     sigma: float = 12,
-    luma_mask_weaken: float = 0.85,
+    luma_mask_weaken: float = 0.7,
     luma_mask_thr: float = 50,
     chroma_strength: float = 1.0,
     precision: bool = False,
@@ -46,10 +47,9 @@ def intensive_adaptive_denoiser (
     :param tr:                  Temporal radius for evey denoiser. Recommended values: 1-3 (1 means no temporal denoise).
                                 Recommended values: 2-3
     :param sigma:               Sigma for BM3D (luma denoise strength). Recommended values: 3-10. If precision = True, you can safely double he value used.
-    :param luma_mask_weaken1:   Controls how much dark spots should be denoised. Lower values mean stronger denoise.
+    :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger denoise.
                                 Recommended values: 0.6-0.9
-    :param luma_mask_weaken2:   Only used if precision = True. Controls how much dark spots should be denoised on BM3Da.
-                                Lower values mean stronger denoise. Recommended values: 0.6-0.9
+    :param luma_mask_thr:       Mi chiamo ping e non metto le descrizioni.
     :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Recommended values: 0.5-2
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
@@ -72,18 +72,21 @@ def intensive_adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, thsad=thsad, vectors=vectors, tr=tr)
-    luma = get_y(core.std.MaskedMerge(ref, clip, darken_luma_mask, planes=0))
+    mfilter = bm3d(clip, sigma=sigma*2, planes=0)
+    ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
     if precision:
-        flatmask = flat_mask(clip, sigma=sigma*2, speed=speed, dntype=1, ref=get_y(ref))
+        flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
         f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
-
-        darken_luma_mask = darken_luma_mask.std.BoxBlur(hradius=2, vradius=2) #Maybe this is not needed, but it helps to smooth the mask a bit (Gauss better?).
         
+        darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
+    
+    denoised = bm3d(get_y(ref), sigma=sigma, planes=0, profile=bm3d.Profile.HIGH)
+    luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
+
     if show_mask == 1:
         return darken_luma_mask
 
@@ -92,7 +95,7 @@ def intensive_adaptive_denoiser (
     if chroma_strength <= 0:
         chroma_denoised = clip
     else:
-        chroma_denoised = nl_means(clip, tr=tr, strength=chroma_strength, ref=ref, planes=[1,2])
+        chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=ref, planes=[1,2])
     
     #TODO
     #chroma mask fine tuning
@@ -101,23 +104,19 @@ def intensive_adaptive_denoiser (
 
     if chroma_masking or chroma_strength<=0:
         v=get_v(clip)
-        v_mask= luma_mask_man(v,t=1.5,s=2, a=0)
-        v_masked = core.std.MaskedMerge(get_v(chroma_denoised), v, core.std.Invert(v_mask))
+        v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
+        v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
         u=get_u(clip)
-        u_mask= luma_mask_man(u,t=1.5,s=2, a=0)
-        u_masked = core.std.MaskedMerge(get_u(chroma_denoised), u, core.std.Invert(u_mask))
+        u_mask= luma_mask_man(u, t=1.5, s=2, a=0)
+        u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
         chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
     
     if show_mask == 2:
         return v_mask
     elif show_mask == 3:
         return u_mask
-
-    denoised = bm3d(luma, sigma=sigma, refine=2, tr=tr, ref=get_y(ref), planes=0, profile=bm3d.Profile.HIGH)
-    luma_final = core.std.MaskedMerge(denoised, luma, darken_luma_mask, planes=0)
-
-    final = core.std.ShufflePlanes(clips=[luma_final, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
-
+    
+    final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
     return final
 
 #TODO

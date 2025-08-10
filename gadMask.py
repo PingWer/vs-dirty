@@ -176,9 +176,9 @@ def flat_mask(
             sigma = 5.0
         if speed == 1:
             profiles = bm3d.Profile.HIGH
+            refine=3
         elif speed == 2:
             profiles = bm3d.Profile.FAST
-            refine=3
 
         if ref is None:
             y_dn = bm3d(y, sigma=sigma, refine=refine, tr=tr, planes=0, profile=profiles)
@@ -190,9 +190,9 @@ def flat_mask(
         if sigma is None:
             sigma = 0.8
         if ref is None:
-            y_dn = nl_means(y, strength=sigma, tr=tr, planes=0)
+            y_dn = nl_means(y, h=sigma, tr=tr, planes=0)
         else:
-            y_dn = nl_means(y, strength=sigma, tr=tr, ref=ref, planes=0)
+            y_dn = nl_means(y, h=sigma, tr=tr, ref=ref, planes=0)
         y_dn= y_dn.std.Median().std.Median()
     else:
         raise ValueError("dntype must be 1 (BM3D) or 2 (NLM)")
