@@ -72,7 +72,7 @@ def intensive_adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = bm3d(clip, sigma=sigma*2, planes=0)
+    mfilter = depth(core.bm3dcuda.BM3D(depth(clip, 32), sigma=sigma*2, block_step=6, bm_range=9), 16)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
     if precision:
