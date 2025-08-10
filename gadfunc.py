@@ -82,7 +82,7 @@ def intensive_adaptive_denoiser (
         [darken_luma_mask, flatmask],
         f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
         
-        #darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
+        darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
     
     denoised = bm3d(get_y(ref), sigma=sigma, planes=0, profile=bm3d.Profile.HIGH)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
