@@ -76,7 +76,7 @@ def intensive_adaptive_denoiser (
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
     if precision:
-        flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1, edge_thr_high=0.07, debug=True)
+        flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1, debug=True)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
