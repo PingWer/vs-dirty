@@ -5,7 +5,7 @@ except ImportError:
 
 try:
     from vsdenoise import bm3d, nl_means
-    from vstools import get_y
+    from vstools import get_y, depth
     from vsmasktools import Morpho
     import math
     from typing import Optional
@@ -162,7 +162,7 @@ def flat_mask(
     y = get_y(clip)
 
     if clip.format.bits_per_sample != 16:
-        clip = clip.fmtc.bitdepth(bits=16)
+        clip = depth(clip, 16)
 
     # Add stats to the clip
     stats_avg = y.std.PlaneStats()
