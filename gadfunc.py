@@ -20,7 +20,7 @@ def intensive_adaptive_denoiser (
     thsad: int = 800,
     tr: int = 2,
     sigma: float = 12,
-    luma_mask_weaken: float = 0.7,
+    luma_mask_weaken: float = 0.75,
     luma_mask_thr: float = 50,
     chroma_strength: float = 1.0,
     precision: bool = False,
