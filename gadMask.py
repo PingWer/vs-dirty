@@ -4,7 +4,7 @@ except ImportError:
     raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
 
 try:
-    from vsdenoise import bm3d, nl_means
+    from vsdenoise import nl_means
     from vstools import get_y, depth
     from vsmasktools import Morpho
     import math
@@ -12,7 +12,34 @@ try:
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
+def get_stdev(avg: float, sq_avg: float) -> float:
+    return (sq_avg - avg ** 2) ** 0.5
 
+def auto_thr_high(stddev):
+    if stddev >0.900:
+        stdev_min, stdev_max = 0.800, 1.000
+    else:
+        stdev_min, stdev_max = 0.400, 1.000
+    thr_high_min, thr_high_max = 0.005, 1.000
+    norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.000), 1.000)
+    return (thr_high_max * ((thr_high_min / thr_high_max) ** norm))
+
+#Mask and thr operations
+def select_mask(n: int, mask_fine: vs.VideoNode, stats_avg, stats_sq, edge_thr_high, edges: vs.VideoNode, debug : bool, sigma : float) -> vs.VideoNode:
+    core=vs.core
+    f_avg = stats_avg.get_frame(n)
+    f_sq = stats_sq.get_frame(n)
+    avg = float(f_avg.props.PlaneStatsAverage)
+    sq_avg = float(f_sq.props.PlaneStatsAverage)
+    stdev = get_stdev(avg, sq_avg)
+    thr = edge_thr_high if edge_thr_high is not None else auto_thr_high(stdev)
+    mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
+    mask = core.std.Expr([mask_fine, mask_medium], "x y min").std.Invert()
+    mask = mask.std.Minimum().std.Maximum()
+    if debug:
+        print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
+    
+    return mask.std.Median().std.Median().std.Median().std.Median().std.Median().std.Median()
 
 def luma_mask (
         clip: vs.VideoNode,
@@ -159,34 +186,22 @@ def flat_mask(
 
     core = vs.core
 
-    y = get_y(clip)
-
     if clip.format.bits_per_sample != 16:
         clip = depth(clip, 16)
 
+    y = get_y(clip)
+
     # Add stats to the clip
     stats_avg = y.std.PlaneStats()
-    sq_clip = core.std.Expr([y], "x x *")
-    stats_sq = sq_clip.std.PlaneStats()
-
-    profiles = bm3d.Profile.FAST #Serve necessariamente un default per evitare errori
-    refine=2
+    stats_sq = core.std.Expr([y], "x x *").std.PlaneStats()
     
     if dntype == 1:
         if sigma is None:
             sigma = 5.0
-        if speed == 1:
-            profiles = bm3d.Profile.HIGH
-            refine=3
-        elif speed == 2:
-            profiles = bm3d.Profile.FAST
-
         if ref is None:
             y_dn = depth(core.bm3dcuda_rtc.BM3D(depth(y, 32), sigma=sigma, block_step=3, bm_range=16), 16)
         else:
             y_dn = depth(core.bm3dcuda_rtc.BM3D(depth(y, 32), sigma=sigma, ref=ref, block_step=3, bm_range=16), 16)
-        
-
     elif dntype == 2:
         if sigma is None:
             sigma = 0.8
@@ -209,33 +224,4 @@ def flat_mask(
 
     mask_fine = edges.std.Binarize(threshold=int(edge_thr_low * 65535))
 
-    def get_stdev(avg: float, sq_avg: float) -> float:
-        return (sq_avg - avg ** 2) ** 0.5
-
-    def auto_thr_high(stddev):
-        if stddev >0.900:
-            stdev_min, stdev_max = 0.800, 1.000
-        else:
-            stdev_min, stdev_max = 0.400, 1.000
-        thr_high_min, thr_high_max = 0.005, 1.000
-        norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.000), 1.000)
-        return (thr_high_max * ((thr_high_min / thr_high_max) ** norm))
-    
-    #Mask and thr operations
-    def select_mask(n: int) -> vs.VideoNode:
-        f_avg = stats_avg.get_frame(n)
-        f_sq = stats_sq.get_frame(n)
-        avg = float(f_avg.props.PlaneStatsAverage)
-        sq_avg = float(f_sq.props.PlaneStatsAverage)
-        stdev = get_stdev(avg, sq_avg)
-        thr = edge_thr_high if edge_thr_high is not None else auto_thr_high(stdev)
-        mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
-        mask = core.std.Expr([mask_fine, mask_medium], "x y min").std.Invert()
-        mask = mask.std.Minimum().std.Maximum()
-        if debug:
-            print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
-        
-        return mask.std.Median().std.Median().std.Median().std.Median().std.Median().std.Median()
-
-
-    return core.std.FrameEval(clip=y, eval=select_mask)
+    return core.std.FrameEval(clip=y, eval=lambda n: select_mask(n, mask_fine, stats_avg, stats_sq, edge_thr_high, edges, debug, sigma))

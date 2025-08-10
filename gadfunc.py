@@ -4,7 +4,7 @@ except ImportError:
     raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
 
 try:
-    from vsdenoise import Prefilter, mc_degrain, bm3d, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
+    from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
     from gadMask import *
@@ -76,7 +76,7 @@ def intensive_adaptive_denoiser (
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
     if precision:
-        flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1)
+        flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1, edge_thr_high=0.07, debug=True)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
