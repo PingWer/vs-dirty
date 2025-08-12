@@ -5,6 +5,7 @@ except ImportError:
 
 try:
     from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
+    from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
     from gadMask import *
