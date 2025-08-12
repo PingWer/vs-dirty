@@ -182,14 +182,11 @@ def flat_mask(
     :param speed:           Speed of the BM3D denoiser. 1 for high quality denoise but is really slow (suggested for noisy and grainy content), 2 for low quality denoise but is really fast (suggested for modern flat anime).
     :return:                Flat mask.
     """
-    #TODO
-    #supporto a tr>1 con il passaggio di ref e vectors (controllare con ifistance)
-    #controllo se esiste un Y plane oppure se è già grayscale
 
     core = vs.core
 
     y = get_y(clip)
-    
+
     if y.format.bits_per_sample != 16:
         y = depth(y, 16)
 
