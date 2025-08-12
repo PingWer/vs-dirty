@@ -188,10 +188,10 @@ def flat_mask(
 
     core = vs.core
 
+    y = get_y(clip)
+    
     if y.format.bits_per_sample != 16:
         y = depth(y, 16)
-
-    y = get_y(clip)
 
     # Add stats to the clip
     stats_avg = y.std.PlaneStats()
