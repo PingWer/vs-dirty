@@ -4,7 +4,7 @@ except ImportError:
     raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
 
 try:
-    from vsdenoise import Prefilter, mc_degrain, bm3d, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
+    from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
     from gadMask import *
@@ -19,16 +19,18 @@ def intensive_adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr: int = 2,
+    tr2: int = 1,
     sigma: float = 12,
     luma_mask_weaken: float = 0.75,
     luma_mask_thr: float = 50,
     chroma_strength: float = 1.0,
-    precision: bool = False,
+    precision: bool = True,
     speed: int = 1,
     chroma_masking: bool = False,
     show_mask: int = 0,
     flat_penalty: float = 0.5,
-    texture_penalty: float = 1.0
+    texture_penalty: float = 1.0,
+    profile_beta: str = None
 ) -> vs.VideoNode:
     """
     Intensive Adaptive Denoise with default parameters for film scans (16mm).
@@ -41,23 +43,48 @@ def intensive_adaptive_denoiser (
     Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
     Note: Luma masks are more sensitive to variations than the sigma value for the final result.
 
-    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with fmtc).
+    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with void dither).
     :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
                                 Recommended values: 300-800
-    :param tr:                  Temporal radius for evey denoiser. Recommended values: 1-3 (1 means no temporal denoise).
-                                Recommended values: 2-3
-    :param sigma:               Sigma for BM3D (luma denoise strength). Recommended values: 3-10. If precision = True, you can safely double he value used.
+    :param tr:                  Temporal radius for mvtools and nlm.
+                                Recommended values: 2-3 (1 means no temporal denoise).
+    :param tr2:                 Temporal radius for BM3D.
+                                Recommended values: 1-2 (0 means no temporal denoise).
+    :param sigma:               Sigma for BM3D (luma denoise strength).
+                                Recommended values: 3-10. If precision = True, you can safely double he value used.
     :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger denoise.
                                 Recommended values: 0.6-0.9
     :param luma_mask_thr:       Mi chiamo ping e non metto le descrizioni.
-    :param chroma_strength:     Strength for NLMeans (chroma denoise strength). Recommended values: 0.5-2
+    :param chroma_strength:     Strength for NLMeans (chroma denoise strength).
+                                Recommended values: 0.5-2
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
-    :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True) .
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True).
+    :param profile_beta:        Beta testing. Changes nearly all parameters. Bigger film = less noise.
+                                Accepted values: "65mm", "35mm", "16mm", "8mm"
 
     :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
     """
     
+    if profile_beta is not None:
+        if profile_beta is "65mm":
+            thsad=200
+            sigma=2
+            luma_mask_weaken=0.9
+            chroma_strength=0.5
+        elif profile_beta is "35mm":
+            thsad=400
+            sigma=4
+            luma_mask_weaken=0.8
+            chroma_strength=0.7
+        elif profile_beta is "16mm":
+            thsad=600
+            sigma=8
+        elif profile_beta is "8mm":
+            tr2=2
+            chroma_strength=1.5
+        else:
+            print("intensive_adaptive_denoiser: No such profile_beta exists.")
     core = vs.core
 
     if clip.format.color_family not in {vs.YUV}:
@@ -72,11 +99,12 @@ def intensive_adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = depth(core.bm3dcuda_rtc.BM3D(depth(clip, 32), sigma=sigma*2, block_step=6, bm_range=9), 16)
+    mfilter = depth(core.bm3dcuda_rtc.BM3Dv2(depth(get_y(clip), 32), sigma=sigma*2, radius=1, block_step=6, bm_range=9, fast=False), 16)
+    mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
     if precision:
-        flatmask = flat_mask(ref, sigma=sigma, speed=speed, dntype=1)
+        flatmask = flat_mask(ref, tr=tr2, sigma=sigma, speed=speed)
 
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
@@ -84,7 +112,7 @@ def intensive_adaptive_denoiser (
         
         darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
     
-    denoised = depth(core.bm3dcuda_rtc.BM3D(get_y(depth(ref, 32)), sigma=sigma, block_step=3, bm_range=16), 16)
+    denoised = depth(core.bm3dcuda_rtc.BM3Dv2(get_y(depth(ref, 32)), sigma=sigma, radius=tr2, block_step=3, bm_range=16, ps_range=7, fast=False), 16)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
 
     if show_mask == 1:
@@ -144,7 +172,7 @@ def auto_deblock(
         raise TypeError("AutoDeblock: clip must be YUV color family!")
 
     if clip.format.bits_per_sample != 16:
-        clip = clip.fmtc.bitdepth(bits=16)
+        clip = depth(clip, 16)
 
     # Scale values to handle high bit depths
     # shift = clip.format.bits_per_sample - 8
@@ -218,7 +246,7 @@ def deblock_old(
     show_mask: bool = False
 )-> vs.VideoNode:
     """
-    Sono stata curata
+    Teoricamente allo stato attuale deblock_qed fa la stessa cosa o quasi
     """
         
     core=vs.core

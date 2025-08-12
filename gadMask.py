@@ -161,8 +161,8 @@ def flat_mask(
 
     y = get_y(clip)
 
-    if clip.format.bits_per_sample != 16:
-        clip = depth(clip, 16)
+    if y.format.bits_per_sample != 16:
+        y = depth(y, 16)
 
     # Add stats to the clip
     stats_avg = y.std.PlaneStats()
@@ -170,21 +170,19 @@ def flat_mask(
     stats_sq = sq_clip.std.PlaneStats()
 
     profiles = bm3d.Profile.FAST #Serve necessariamente un default per evitare errori
-    refine=2
     
     if dntype == 1:
         if sigma is None:
             sigma = 5.0
         if speed == 1:
             profiles = bm3d.Profile.HIGH
-            refine=3
         elif speed == 2:
             profiles = bm3d.Profile.FAST
 
         if ref is None:
-            y_dn = depth(core.bm3dcuda_rtc.BM3D(depth(y, 32), sigma=sigma, block_step=3, bm_range=16), 16)
+            y_dn = depth(core.bm3dcuda_rtc.BM3Dv2(depth(y, 32), sigma=sigma, radius=2, block_step=3, bm_range=16, ps_range=7, fast=False), 16)
         else:
-            y_dn = depth(core.bm3dcuda_rtc.BM3D(depth(y, 32), sigma=sigma, ref=ref, block_step=3, bm_range=16), 16)
+            y_dn = depth(core.bm3dcuda_rtc.BM3Dv2(depth(y, 32), sigma=sigma, ref=ref, radius=2, block_step=3, bm_range=16, ps_range=7, fast=False), 16)
         
 
     elif dntype == 2:
@@ -234,8 +232,8 @@ def flat_mask(
         mask = mask.std.Minimum().std.Maximum()
         if debug:
             print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
-        
-        return mask.std.Median().std.Median().std.Median().std.Median().std.Median().std.Median()
+        matrix3x3 = "x x[-1,-1] + x[0,-1] x[1,-1] + + x[-1,0] x[1,0] + x[-1,1] x[0,1] + + + x[1,1] +"
+        matrix5x5_ext = " x[-2,-1] x[-2,0] + x[-2,1] + x[-1,-2] x[0,-2] + x[1,-2] + + x[-1,2] x[0,2] + x[1,2] + x[2,-1] x[2,0] + x[2,1] + + +"
+        return mask.akarin.Expr(f"{matrix3x3} {matrix5x5_ext} + 660000 > 65535 0 ?") # Median 5x5 no corners (round)
 
-
-    return core.std.FrameEval(clip=y, eval=select_mask)
+    return core.std.FrameEval(y, eval=select_mask)
