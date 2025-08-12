@@ -39,7 +39,9 @@ def select_mask(n: int, mask_fine: vs.VideoNode, stats_avg, stats_sq, edge_thr_h
     if debug:
         print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
     
-    return mask.std.Median().std.Median().std.Median().std.Median().std.Median().std.Median()
+    matrix3x3 = "x x[-1,-1] + x[0,-1] x[1,-1] + + x[-1,0] x[1,0] + x[-1,1] x[0,1] + + + x[1,1] +"
+    matrix5x5_ext = " x[-2,-1] x[-2,0] + x[-2,1] + x[-1,-2] x[0,-2] + x[1,-2] + + x[-1,2] x[0,2] + x[1,2] + x[2,-1] x[2,0] + x[2,1] + + +"
+    return mask.akarin.Expr(f"{matrix3x3} {matrix5x5_ext} + 660000 > 65535 0 ?") # Median 5x5 no corners (round)
 
 def luma_mask (
         clip: vs.VideoNode,
