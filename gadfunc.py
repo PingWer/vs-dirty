@@ -9,6 +9,7 @@ try:
     from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
     from gadMask import *
+    from gadwrapper import *
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
@@ -68,20 +69,20 @@ def intensive_adaptive_denoiser (
     """
     
     if profile_beta is not None:
-        if profile_beta is "65mm":
+        if profile_beta == "65mm":
             thsad=200
             sigma=2
             luma_mask_weaken=0.9
             chroma_strength=0.5
-        elif profile_beta is "35mm":
+        elif profile_beta == "35mm":
             thsad=400
             sigma=4
             luma_mask_weaken=0.8
             chroma_strength=0.7
-        elif profile_beta is "16mm":
+        elif profile_beta == "16mm":
             thsad=600
             sigma=8
-        elif profile_beta is "8mm":
+        elif profile_beta == "8mm":
             tr2=2
             chroma_strength=1.5
         else:
@@ -100,7 +101,7 @@ def intensive_adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = depth(core.bm3dcuda_rtc.BM3Dv2(depth(get_y(clip), 32), sigma=sigma*2, radius=1, block_step=6, bm_range=9, fast=False), 16)
+    mfilter = depth(mini_BM3D(depth(get_y(clip), 32), sigma=sigma*2, radius=1, profile="LC"), 16)
     mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
@@ -113,7 +114,7 @@ def intensive_adaptive_denoiser (
         
         darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
     
-    denoised = depth(core.bm3dcuda_rtc.BM3Dv2(get_y(depth(ref, 32)), sigma=sigma, radius=tr2, block_step=3, bm_range=16, ps_range=7, fast=False), 16)
+    denoised = depth(mini_BM3D(get_y(depth(ref, 32)), sigma=sigma, radius=tr2, profile="HIGH"), 16)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
 
     if show_mask == 1:

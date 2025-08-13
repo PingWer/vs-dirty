@@ -9,6 +9,7 @@ try:
     from vsmasktools import Morpho
     import math
     from typing import Optional
+    from gadwrapper import *
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
@@ -198,9 +199,9 @@ def flat_mask(
         if sigma is None:
             sigma = 5.0
         if ref is None:
-            y_dn = depth(core.bm3dcuda_rtc.BM3Dv2(depth(y, 32), sigma=sigma, radius=2, block_step=3, bm_range=16, ps_range=7, fast=False), 16)
+            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=2, profile="HIGH"), 16)
         else:
-            y_dn = depth(core.bm3dcuda_rtc.BM3Dv2(depth(y, 32), sigma=sigma, ref=ref, radius=2, block_step=3, bm_range=16, ps_range=7, fast=False), 16)
+            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=2, profile="HIGH"), 16)
         
 
     elif dntype == 2:
