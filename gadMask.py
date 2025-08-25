@@ -199,9 +199,9 @@ def flat_mask(
         if sigma is None:
             sigma = 5.0
         if ref is None:
-            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=2, profile="HIGH"), 16)
+            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=tr, profile="HIGH"), 16)
         else:
-            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=2, profile="HIGH"), 16)
+            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=tr, profile="HIGH"), 16)
         
 
     elif dntype == 2:
