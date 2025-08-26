@@ -7,14 +7,14 @@ import sys
 import random
 import gzip
 import shutil
-import sys
+import numpy as np
 
 '''
 JSON STRUCTURE
 {
     "info": {
         "total": <total number of frames>,
-        "valid": <number of frames with non-empty or corrupted qp_grid>,
+        "valid": <number of frames with non-empty qp_grid>,
         "empty": <number of frames with empty qp_grid>
     },
     "frames": [
@@ -22,7 +22,7 @@ JSON STRUCTURE
             "frame": <frame number (starting from 0)>,
             "type": "<frame type, e.g., I/P/B/UNKNOWN>",
             "qp_grid": [
-                [<qp>, <qp>, ...],   // Row of the QP grid (array of int)
+                [<qp>, <qp>, ...],   // Row of the QP grid
                 ...
             ]
         },
@@ -43,6 +43,36 @@ def check_ffmpeg_in_path(ffmpeg_path):
             print("Error: ffmpeg not found in system PATH. Please install ffmpeg and make sure it is in the PATH or specify the path with -f.")
             sys.exit(1)
         return ffmpeg_in_path
+
+def get_framerate(video_path):
+    cmd = [
+        "ffprobe", "-v", "0",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=r_frame_rate",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    rate = result.stdout.strip()
+    nums = rate.split('/')
+    if len(nums) == 2:
+        return float(nums[0]) / float(nums[1])
+    else:
+        return float(nums[0])
+
+def parse_fps(fps_str):
+    fps_str = fps_str.strip()
+    if "/" in fps_str:
+        num, den = fps_str.split("/")
+        try:
+            return float(num) / float(den)
+        except ValueError:
+            raise ValueError(f"Invalid FPS fraction: {fps_str}")
+    else:
+        try:
+            return float(fps_str)
+        except ValueError:
+            raise ValueError(f"Invalid FPS value: {fps_str}")
 
 def parse_qp_log(log_path):
     print("Parsing QP log file")
@@ -103,7 +133,7 @@ def parse_qp_log(log_path):
         if current_frame:
             frames.append(current_frame)
     for frame in frames:
-        frame.pop('status', None) #Non serve lo status attualmente, ma in futuro potrebbe essere utile se ci sono frame corrotti di QP
+        frame.pop('status', None)
 
     return frames
 
@@ -129,10 +159,6 @@ def save_qp_report(frames, output_file, compression):
         return report, output_file
 
 def generateQPFromVideo(input_video, log_path="debug_frameqp.txt", ffmpeg_path="ffmpeg"):
-    """
-    Runs ffmpeg to generate the QP log file from the video.
-    Returns True if the file was generated successfully and is not empty.
-    """
     cmd = [
         ffmpeg_path,
         "-threads", "1",
@@ -142,7 +168,7 @@ def generateQPFromVideo(input_video, log_path="debug_frameqp.txt", ffmpeg_path="
         "-f", "null",
         "-"
     ]
-    print("Running ffmpeg\n The proccess is very slow and could take minutes or tens of minutes depending on the video length.")
+    print("Running ffmpeg\n The process may take minutes depending on video length.")
     with open(log_path, "w", encoding="utf-8") as logfile:
         result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=logfile)
 
@@ -152,53 +178,119 @@ def generateQPFromVideo(input_video, log_path="debug_frameqp.txt", ffmpeg_path="
         print(f"Error: {log_path} was not correctly generated.")
         return False
 
+def write_qp_to_yuv(frames, output_yuv_path):
+    if not frames:
+        print("No frames to write!")
+        return
+    # Dimensione basata sulla grandezza della grid (sarà sempre esatta)
+    height = len(frames[0]['qp_grid'])
+    width = len(frames[0]['qp_grid'][0])
+    frame_size = width * height
+    num_frames = len(frames)
+
+    print(f"Writing {num_frames} frames to YUV400 (8bit, 6bit effective) -> {output_yuv_path}")
+    with open(output_yuv_path, "wb") as f:
+        f.write(b'\x00' * (frame_size * num_frames))
+
+    with open(output_yuv_path, "r+b") as f:
+        for frame in frames:
+            qp_grid = np.array(frame['qp_grid'], dtype=np.uint8)
+            qp_grid = np.clip(qp_grid, 0, 63)  # 6-bit effective
+            f.seek(frame['frame'] * frame_size)
+            f.write(qp_grid.tobytes())
+
+def write_qp_to_mkv(frames, output_mkv_path, fps, ffmpeg_path="ffmpeg"):
+    if not frames:
+        raise ValueError("No frames to write!")
+    
+    height = len(frames[0]['qp_grid'])
+    width = len(frames[0]['qp_grid'][0])
+    
+    print(f"Writing {len(frames)} frames to temporary raw YUV file...")
+    
+    # File temporaneo YUV da cui generare MKV (evito la stream diretta per questioni di buffering e possibile rottura di cazzo da parte dei newline del terminale)
+    tmp_yuv = "tmp_qp.yuv"
+    with open(tmp_yuv, "wb") as f:
+        for frame in frames:
+            qp_grid = np.array(frame['qp_grid'], dtype=np.uint8)
+            qp_grid = np.clip(qp_grid, 0, 63)
+            f.write(qp_grid.tobytes())
+    
+    print(f"Encoding raw YUV into MKV with FFV1 -> {output_mkv_path}")
+    cmd = [
+        ffmpeg_path,
+        "-y",
+        "-f", "rawvideo",
+        "-pixel_format", "gray",
+        "-video_size", f"{width}x{height}",
+        "-framerate", str(fps),
+        "-i", tmp_yuv,
+        "-c:v", "ffv1",
+        output_mkv_path
+    ]
+    
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("FFmpeg error:\n", result.stderr)
+    else:
+        print(f"MKV generated successfully: {output_mkv_path}")
+    
+    os.remove(tmp_yuv)
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Parse QP log or generate it from video using ffmpeg.")
+    parser = argparse.ArgumentParser(description="Parse QP log, generate JSON or directly YUV file.")
     parser.add_argument('-v', '--video', type=str, help='Input video file')
     parser.add_argument('-l', '--log', type=str, help='Input QP log file')
-    parser.add_argument('-o', '--output', type=str, default="qp_parsed_grid.json", help='Output JSON file')
-    parser.add_argument('-c', '--compress', type=bool, default=True, help='Use gzip compression for the output JSON file (default: True). Set to False to disable (not suggested).')
+    parser.add_argument('-o', '--output', type=str, default="qp_parsed_grid.json", help='Output JSON/YUV file')
+    parser.add_argument('-c', '--compress', type=bool, default=True, help='Use gzip for JSON output')
     parser.add_argument('-f', '--ffmpeg_path', type=str, default=None, help='Path to ffmpeg executable (optional)')
+    parser.add_argument('-a', '--auto', type=bool, default=True, help='If True, generates only mkv file from QP grids (default True)')
+    parser.add_argument('--fps', type=str, default=None, help='Frame rate to use for MKV (required if only log is provided)')
     args = parser.parse_args()
 
     input_video = args.video
     input_log = args.log
     output_file = args.output
+    output_yuv= "output_qp"
     compression = args.compress
     ffmpeg_path = check_ffmpeg_in_path(args.ffmpeg_path)
 
-    if not input_video and not input_log:
-        print("Usage: python parser264_qp.py -v <input_video> -l <input_log> -o <output_file> -c <compress> -f <ffmpeg_path>\nAt least one between -v or -l must be provided.")
-        sys.exit(1)
-    elif not input_video and input_log:
+    frames = None
+
+    if input_log:
+        if args.fps:
+            fps = parse_fps(args.fps)
+            print(f"Using provided FPS: {fps}")
+        else:
+            print("Error: FPS must be provided if only log is given.")
+            sys.exit(1)
         frames = parse_qp_log(input_log)
-        report, compressed_file = save_qp_report(frames, output_file, compression)
-        print(f"QP grid generated as: {compressed_file}")
-    else:
+    elif input_video:
+        fps = get_framerate(args.video)
         if generateQPFromVideo(input_video, log_path="debug_frameqp.txt", ffmpeg_path=ffmpeg_path):
             input_log = "debug_frameqp.txt"
             frames = parse_qp_log(input_log)
-            report, compressed_file = save_qp_report(frames, output_file, compression)
-            print(f"QP grid generated as: {compressed_file}")
         else:
-            print(f"Failed to generate QP log from video: {input_video}\n Ffmpeg error may have occurred.")
+            print(f"Failed to generate QP log from video: {input_video}")
             sys.exit(1)
-
-    # Stampa un frame casuale dal JSON per log di sicurezza
-    if compression:
-        with gzip.open(compressed_file, 'rt', encoding='utf-8') as f:
-            report = json.load(f)
     else:
-        with open(output_file, 'r', encoding='utf-8') as f:
-            report = json.load(f)
-    frames = report.get('frames', [])
-    if frames:
-        random_frame = random.choice(frames)
-        print("\n--- Random Frame from the json to ensure correct data parsing ---")
-        print(f"Frame: {random_frame.get('frame')}")
-        print(f"Type: {random_frame.get('type')}")
-        print(f"QP Grid: {random_frame.get('qp_grid')}")
-    else:
-        print("No frame found. WTF?")
+        print("Provide at least a log (-l) or a video (-v)")
+        sys.exit(1)
 
+    if frames is None or not frames:
+        print("No frames parsed, aborting.")
+        sys.exit(1)
 
+    if args.auto:
+        mkv_path = output_yuv + ".mkv"
+        write_qp_to_mkv(frames, mkv_path, fps, ffmpeg_path)
+        sys.exit(0)
+
+    report, compressed_file = save_qp_report(frames, output_file, compression)
+    print(f"QP grid generated as: {compressed_file}")
+
+    random_frame = random.choice(frames)
+    print("\n--- Random Frame from the parsed data ---")
+    print(f"Frame: {random_frame.get('frame')}")
+    print(f"Type: {random_frame.get('type')}")
+    print(f"QP Grid: {random_frame.get('qp_grid')}")
