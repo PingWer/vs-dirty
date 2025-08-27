@@ -11,4 +11,5 @@ __pycache__
 *.x264
 *.h264
 *.264
+*.yuv
 dfttest2.py

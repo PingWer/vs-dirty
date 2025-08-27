@@ -1,1 +1,1 @@
-# VapourSynth-GeneralAdaptiveDenoise-
+# vs-dirty
