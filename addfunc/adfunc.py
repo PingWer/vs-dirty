@@ -8,8 +8,8 @@ try:
     from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
     from typing import Optional
-    from admask import *
-    from adwrapper import *
+    from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
+    from .adwrapper import mini_BM3D
 except ImportError:
     raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 

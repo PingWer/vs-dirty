@@ -17,6 +17,8 @@ def mini_BM3D(clip, profile, **kwargs):
         block_step=3
         bm_range=16
         ps_range=7
+    else:
+        raise ValueError("Profile must be 'LC' or 'HIGH'")
     
     try:
         return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range, fast=False)

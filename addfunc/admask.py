@@ -8,9 +8,9 @@ try:
     from vstools import get_y, depth
     import math
     from typing import Optional
-    from adwrapper import *
+    from .adwrapper import mini_BM3D
 except ImportError:
-    raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+   raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
 def get_stdev(avg: float, sq_avg: float) -> float:
     return (sq_avg - avg ** 2) ** 0.5
