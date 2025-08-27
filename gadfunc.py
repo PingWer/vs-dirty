@@ -17,7 +17,7 @@ core = vs.core
 if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
     raise ImportError("'dfttest', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
-def intensive_adaptive_denoiser (
+def adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr: int = 2,
@@ -27,7 +27,6 @@ def intensive_adaptive_denoiser (
     luma_mask_thr: float = 50,
     chroma_strength: float = 1.0,
     precision: bool = True,
-    speed: int = 1,
     chroma_masking: bool = False,
     show_mask: int = 0,
     flat_penalty: float = 0.5,
@@ -86,11 +85,11 @@ def intensive_adaptive_denoiser (
             tr2=2
             chroma_strength=1.5
         else:
-            print("intensive_adaptive_denoiser: No such profile_beta exists.")
+            print("adaptive_denoiser: No such profile_beta exists.")
     core = vs.core
 
     if clip.format.color_family not in {vs.YUV}:
-        raise ValueError('GAD: only YUV formats are supported')
+        raise ValueError('adaptive_denoiser: only YUV formats are supported')
 
     if clip.format.bits_per_sample != 16:
         clip = depth(clip, 16)
