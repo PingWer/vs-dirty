@@ -18,6 +18,8 @@ def dirty_fix(
     :param video_range: This will clip the output values to the selected range.
     :param var: Function in beta, sane values: 0.5-10.
     :param verbose: For debugging.
+
+    :return: Fixed clip.
     """
 
     if clip.format.color_family not in {vs.GRAY}:
@@ -57,7 +59,7 @@ def dirty_fix(
         expr = expr + "? "
 
     if verbose:
-        print("final expr: " + expr)
+        print("final expr: " + expr, end="\r\n")
     clip = clip.akarin.Expr(expr)
 
     return clip
