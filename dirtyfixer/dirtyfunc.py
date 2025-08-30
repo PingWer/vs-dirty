@@ -6,7 +6,8 @@ def dirty_fix(
     rows: dict[int, int] = {},
     columns: dict[int, int] = {},
     video_range: list[int] = [16, 235],
-    var: int = 1,
+    var: int = None,
+    blur: bool = False,
     verbose: bool = False
 ) -> vs.VideoNode:
     """
@@ -16,7 +17,8 @@ def dirty_fix(
     :param rows: Receives (row_number, row_value), negative row values will darken the selected row.
     :param columns: Receives (column_number, column_value), negative column values will darken the selected column.
     :param video_range: This will clip the output values to the selected range.
-    :param var: Function in beta, sane values: 0.5-10.
+    :param var: Function in beta, sane values: 2-3.
+    :param blur: Blurs the rows/columns with a value over 50.
     :param verbose: For debugging.
 
     :return: Fixed clip.
@@ -36,7 +38,11 @@ def dirty_fix(
     if rows:
         for row_num, row_val in rows:
             row_val = row_val/100
-            row_strength = f"1 {row_val} x 1 + x {var} + / * +"
+            row_strength = f"{row_val} 1 +"
+            if var:
+                num = "1.5 x log -"
+                den = f"{var} x +"
+                row_strength = f"{num} {den} / {row_val} * 1 +"
             rowstr = f"Y {row_num} = x {row_strength} * {min_range} {max_range} clip "
             expr = expr + rowstr
             if verbose:
@@ -45,7 +51,12 @@ def dirty_fix(
     if columns:
         for col_num, col_val in columns:
             col_val = col_val/100
-            col_strength = f"1 {col_val} x 1 + x {var} + / * +"
+            col_strength = f"{col_val} 1 +"
+            if var:
+                num = "1.5 x log -"
+                den = f"{var} x +"
+                col_strength = f"{num} {den} / {col_val} * 1 +"
+                col_strength = f"1 x log - {var} x + / {col_val} * 1 +"
             colstr = f"X {col_num} = x {col_strength} * {min_range} {max_range} clip "
             expr = expr + colstr
             if verbose:
@@ -61,5 +72,39 @@ def dirty_fix(
     if verbose:
         print("final expr: " + expr, end="\r\n")
     clip = clip.akarin.Expr(expr)
+
+    if blur:
+        expr = ""
+        no_row = 0
+        no_col = 0
+        if rows:
+            for row_num, row_val in rows:
+                if row_val > 50:
+                    row_blur = f"x[0,1] x[0,-1] + x[0,2] x[0,-2] + + x + 5 /"
+                    rowstr = f"Y {row_num} = {row_blur} {min_range} {max_range} clip "
+                    expr = expr + rowstr
+                else:
+                    no_row = no_row+1
+    
+        if columns:
+            for col_num, col_val in columns:
+                if col_val > 50:
+                    col_blur = f"x[1,0] x[-1,0] + x[2,0] x[-2,0] + + x + 5 /"
+                    colstr = f"X {col_num} = {col_blur} {min_range} {max_range} clip "
+                    expr = expr + colstr
+                else:
+                    no_col = no_col+1
+    
+        expr = expr + "x "
+
+        for _ in range(len(rows)-no_row):
+            expr = expr + "? "
+        for _ in range(len(columns)-no_col):
+           expr = expr + "? "
+
+        if verbose:
+            print("final expr for blur: " + expr, end="\r\n")
+        clip = clip.akarin.Expr(expr)
+
 
     return clip
