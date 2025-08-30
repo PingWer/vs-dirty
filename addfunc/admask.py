@@ -12,8 +12,8 @@ try:
 except ImportError:
    raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
 
-def get_stdev(avg: float, sq_avg: float) -> float:
-    return (sq_avg - avg ** 2) ** 0.5
+def _get_stdev(avg: float, sq_avg: float) -> float:
+    return abs(sq_avg - avg ** 2) ** 0.5
 
 def auto_thr_high(stddev):
     if stddev >0.900:
@@ -23,25 +23,6 @@ def auto_thr_high(stddev):
     thr_high_min, thr_high_max = 0.005, 1.000
     norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.000), 1.000)
     return (thr_high_max * ((thr_high_min / thr_high_max) ** norm))
-
-#Mask and thr operations
-def select_mask(n: int, mask_fine: vs.VideoNode, stats_avg, stats_sq, edge_thr_high, edges: vs.VideoNode, debug : bool, sigma : float) -> vs.VideoNode:
-    core=vs.core
-    f_avg = stats_avg.get_frame(n)
-    f_sq = stats_sq.get_frame(n)
-    avg = float(f_avg.props.PlaneStatsAverage)
-    sq_avg = float(f_sq.props.PlaneStatsAverage)
-    stdev = get_stdev(avg, sq_avg)
-    thr = edge_thr_high if edge_thr_high is not None else auto_thr_high(stdev)
-    mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
-    mask = core.std.Expr([mask_fine, mask_medium], "x y min").std.Invert()
-    mask = mask.std.Minimum().std.Maximum()
-    if debug:
-        print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
-    
-    matrix3x3 = "x x[-1,-1] + x[0,-1] x[1,-1] + + x[-1,0] x[1,0] + x[-1,1] x[0,1] + + + x[1,1] +"
-    matrix5x5_ext = " x[-2,-1] x[-2,0] + x[-2,1] + x[-1,-2] x[0,-2] + x[1,-2] + + x[-1,2] x[0,2] + x[1,2] + x[2,-1] x[2,0] + x[2,1] + + +"
-    return mask.akarin.Expr(f"{matrix3x3} {matrix5x5_ext} + 660000 > 65535 0 ?") # Median 5x5 no corners (round)
 
 def luma_mask (
         clip: vs.VideoNode,
@@ -163,7 +144,6 @@ def flat_mask(
         edge_thr_low: float = 0.001, 
         debug: bool = False,
         dntype: int = 1,
-        speed: int = 1,
         ref: vs.VideoNode = None
         )-> vs.VideoNode:
     """
@@ -179,11 +159,17 @@ def flat_mask(
     :param edge_thr_high:   Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
     :param debug:           If True, prints the standard deviation and threshold values for each frame.
     :param dntype:          Denoiser type. 1 for BM3D, 2 for NLM.
-    :param speed:           Speed of the BM3D denoiser. 1 for high quality denoise but is really slow (suggested for noisy and grainy content), 2 for low quality denoise but is really fast (suggested for modern flat anime).
     :return:                Flat mask.
     """
 
     core = vs.core
+
+    def _add_stddev(n, f):
+        core = vs.core
+        avg    = float(f[0].props['PlaneStatsAverage'])
+        avg_sq = float(f[1].props['PlaneStatsAverage'])
+        stddev = _get_stdev(avg, avg_sq)
+        return core.std.SetFrameProp(y, prop="std_dev", floatval=stddev)
 
     y = get_y(clip)
 
@@ -191,9 +177,11 @@ def flat_mask(
         y = depth(y, 16)
 
     # Add stats to the clip
-    stats_avg = y.std.PlaneStats()
-    stats_sq = core.std.Expr([y], "x x *").std.PlaneStats()
-    
+    stats_avg = y.std.PlaneStats() 
+    stats_sq = core.std.Expr([y], "x x *").std.PlaneStats() 
+
+    y_std = core.std.FrameEval(y, _add_stddev, prop_src=[stats_avg, stats_sq], clip_src=[stats_avg, stats_sq])
+
     if dntype == 1:
         if sigma is None:
             sigma = 5.0
@@ -201,7 +189,6 @@ def flat_mask(
             y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=tr, profile="HIGH"), 16)
         else:
             y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=tr, profile="HIGH"), 16)
-        
 
     elif dntype == 2:
         if sigma is None:
@@ -225,4 +212,19 @@ def flat_mask(
 
     mask_fine = edges.std.Binarize(threshold=int(edge_thr_low * 65535))
 
-    return core.std.FrameEval(clip=y, eval=lambda n: select_mask(n, mask_fine, stats_avg, stats_sq, edge_thr_high, edges, debug, sigma))
+    matrix3x3 = "x x[-1,-1] + x[0,-1] x[1,-1] + + x[-1,0] x[1,0] + x[-1,1] x[0,1] + + + x[1,1] +"
+    matrix5x5_ext = " x[-2,-1] x[-2,0] + x[-2,1] + x[-1,-2] x[0,-2] + x[1,-2] + + x[-1,2] x[0,2] + x[1,2] + x[2,-1] x[2,0] + x[2,1] + + +"
+    akarin_expr= f"{matrix3x3} {matrix5x5_ext} + 660000 > 65535 0 ?"
+
+    def select_mask(n, f) -> vs.VideoNode:
+        stdev = f.props['std_dev']
+        thr = edge_thr_high if edge_thr_high is not None else auto_thr_high(stdev)
+        mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
+        mask = core.akarin.Expr([mask_fine, mask_medium], "x y min").std.Invert()
+        mask = mask.std.Minimum().std.Maximum()
+        if debug:
+            print(f"Frame {n}: stdev={stdev}, sigma={sigma}, thr_high={thr}")
+    
+        final = mask.akarin.Expr(akarin_expr)
+        return final
+    return core.std.FrameEval(y, clip_src=[edges, mask_fine], prop_src=[y_std], eval=lambda n,f: select_mask(n,f))

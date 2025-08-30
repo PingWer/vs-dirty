@@ -30,7 +30,7 @@ def adaptive_denoiser (
     chroma_masking: bool = False,
     show_mask: int = 0,
     flat_penalty: float = 0.5,
-    texture_penalty: float = 1.0,
+    texture_penalty: float = 1.1,
     profile_beta: Optional[str] = None
 ) -> vs.VideoNode:
     """
@@ -106,15 +106,14 @@ def adaptive_denoiser (
 
     if precision:
         flatmask = flat_mask(ref, tr=tr2, sigma=sigma)
-
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
         f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
         
         darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
-    
+
     denoised = depth(mini_BM3D(get_y(depth(ref, 32)), sigma=sigma, radius=tr2, profile="HIGH"), 16)
-    luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0))
+    luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
 
     if show_mask == 1:
         return darken_luma_mask
