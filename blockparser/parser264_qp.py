@@ -111,7 +111,11 @@ def parse_qp_log(log_path: str) -> List[Dict]:
 # QP generation (FFmpeg) -> log.txt
 # -----------------------------
 
-def generate_qp_from_video(input_video: str, log_path: str = "debug_frameqp.txt", ffmpeg_path: str = "ffmpeg") -> bool:
+def generate_qp_from_video(
+    input_video: str,
+    log_path: str = "debug_frameqp.txt",
+    ffmpeg_path: str = "ffmpeg"
+) -> bool:
     """
     Generate QP debug log from input video (only H.264 is supported) using ffmpeg.
     """
@@ -134,7 +138,11 @@ def generate_qp_from_video(input_video: str, log_path: str = "debug_frameqp.txt"
 # Writeers (YUV/MKV/JSON)
 # -----------------------------
 
-def save_qp_report(frames: List[Dict], output_file: str, compression: bool) -> Tuple[Dict, str]:
+def save_qp_report(
+    frames: List[Dict],
+    output_file: str,
+    compression: bool
+) -> Tuple[Dict, str]:
     """
     Save the parsed QP frames into a JSON file, optionally compressed with gzip.
     """
@@ -158,7 +166,10 @@ def save_qp_report(frames: List[Dict], output_file: str, compression: bool) -> T
         return report, output_file
 
 
-def write_qp_to_yuv(frames: List[Dict], output_yuv_path: str): #Use it if you want a raw YUV file instead of MKV (idk why would you want that)
+def write_qp_to_yuv(
+    frames: List[Dict],
+    output_yuv_path: str
+) -> None: #Use it if you want a raw YUV file instead of MKV (idk why would you want that)
     """
     Write the QP grids into a raw YUV400 file (8bit, 6bit effective) with no header.
     """
@@ -182,7 +193,12 @@ def write_qp_to_yuv(frames: List[Dict], output_yuv_path: str): #Use it if you wa
             f.write(qp_grid.tobytes())
 
 
-def write_qp_to_mkv(frames: List[Dict], output_mkv_path: str, fps: float, ffmpeg_path: str = "ffmpeg"):
+def write_qp_to_mkv(
+    frames: List[Dict],
+    output_mkv_path: str,
+    fps: float,
+    ffmpeg_path: str = "ffmpeg"
+) -> None:
     """
     Write the QP grids into a MKV file using FFV1 codec (lossless).
     """
@@ -233,12 +249,14 @@ def write_qp_to_mkv(frames: List[Dict], output_mkv_path: str, fps: float, ffmpeg
 # VapourSynth API
 # -----------------------------
 
-def createQPNode(input_video: Optional[str] = None,
-                 frames: Optional[List[Dict]] = None,
-                 ffmpeg_path: Optional[str] = None,
-                 fps_num: Optional[int] = None,
-                 fps_den: Optional[int] = None,
-                 log_path: str = "debug_frameqp.txt") -> 'vs.VideoNode':
+def createQPNode(
+    input_video: Optional[str] = None,
+    frames: Optional[List[Dict]] = None,
+    ffmpeg_path: Optional[str] = None,
+    fps_num: Optional[int] = None,
+    fps_den: Optional[int] = None,
+    log_path: str = "debug_frameqp.txt"
+) -> 'vs.VideoNode': # type: ignore
     """
     Create a VapourSynth VideoNode from parsed QP frames or by generating the log from a video or from an already genereted QP list.
     Either input_video or frames must be provided. If only log_path is provided, fps_num and fps_den must also be provided.
