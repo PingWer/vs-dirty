@@ -62,12 +62,7 @@ def dirty_fix(
             if verbose:
                 print(f"column_number {col_num} has value {col_val}")
     
-    expr = expr + "x "
-
-    for _ in range(len(rows)):
-        expr = expr + "? "
-    for _ in range(len(columns)):
-        expr = expr + "? "
+    expr = expr + "x " + "? " * (len(rows) + len(columns))
 
     if verbose:
         print("final expr: " + expr, end="\r\n")
@@ -95,12 +90,7 @@ def dirty_fix(
                 else:
                     no_col = no_col+1
     
-        expr = expr + "x "
-
-        for _ in range(len(rows)-no_row):
-            expr = expr + "? "
-        for _ in range(len(columns)-no_col):
-           expr = expr + "? "
+        expr = expr + "x " + "? " * (len(rows)-no_row + len(columns)-no_col)
 
         if verbose:
             print("final expr for blur: " + expr, end="\r\n")
