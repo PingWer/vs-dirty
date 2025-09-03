@@ -1,5 +1,5 @@
 import vapoursynth as vs
-from vstools import depth, scale_value, ColorRange
+from vstools import depth, scale_value, ColorRange, get_lowest_values, get_peak_values
 
 def dirty_fix(
     clip: vs.VideoNode,
@@ -108,3 +108,56 @@ def dirty_fix(
 
 
     return clip
+
+def pocjet(
+        clip: vs.VideoNode,
+        column_num: tuple | list[tuple] | None = None,
+        row_num: tuple | list[tuple] | None = None,
+        column_val: tuple | list[tuple] | None = None,
+        row_val: tuple | list[tuple] | None = None,
+        protect: bool | tuple | list[tuple] = True
+    ) -> vs.VideoNode:
+
+    import vsexprtools
+
+    if isinstance(column_num, tuple):
+        column_num = [column_num]
+    if isinstance(row_num, tuple):
+        row_num = [row_num]
+    if isinstance(column_val, tuple):
+        column_val = [column_val]
+    if isinstance(row_val, tuple):
+        row_val = [row_val]
+    if isinstance(protect, tuple):
+        protect = [protect]
+    elif protect is True:
+        low, high = get_lowest_values(clip), get_peak_values(clip)
+        protect = []
+
+        for i in range(clip.format.num_planes):
+            protect.append((low[i], high[i]))
+
+    columns = len(column_num) if column_num else 0
+    rows = len(row_num) if row_num else 0
+
+    def _fix_lines(lines: tuple, values: tuple, coord: str) -> str:
+        expr, linecount = '', len(lines)
+        for i in range(linecount):
+            expr += f'{coord} {lines[i]} = CLIP@ {values[i]} * '
+        return f'{expr}CLIP@ {'? ' * linecount}CLIP! '
+
+    exprs = [''] * clip.format.num_planes
+    for i in range(clip.format.num_planes):
+        norm = 'range_in_min' if i == 0 or clip.format.color_family == vs.RGB else 'neutral'
+
+        if i < columns or i < rows:
+            exprs[i] = f'x {norm} - CLIP! '
+            if column_num and column_val and i < columns:
+                exprs[i] += _fix_lines(column_num[i], column_val[i], 'X')
+            if row_num and row_val and i < rows:
+                exprs[i] += _fix_lines(row_num[i], row_val[i], 'Y')
+
+            final_expr = f'CLIP@ {norm} +'
+            exprs[i] += f'x {protect[i][0]} > x {protect[i][1]} < and {final_expr} x ?' if protect else final_expr
+
+    return vsexprtools.norm_expr(clip, tuple(exprs))
