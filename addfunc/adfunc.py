@@ -17,7 +17,34 @@ core = vs.core
 if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
     raise ImportError("'dfttest', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
-def adaptive_denoiser (
+#la desc dei preset la puoi mettere solo qui dentro il codice, 
+#ma non verrà mostrata nella preview di vscode (limitazione di vscode)
+#Stessa cosa vale per la desc di _adpative_denoiser, non si vedrà se non entrando dentro la funzione, 
+#l'alternativa è metterla come desc della classe adenoise, scegli tu 
+_PRESETS = {
+    "scan65mm": dict(thsad=200, sigma=2, luma_mask_weaken=0.9, chroma_strength=0.5),
+    "scan35mm": dict(thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7),
+    "scan16mm": dict(thsad=600, sigma=8),
+    "scan8mm" : dict(tr2=2, chroma_strength=1.5),
+    "digital" : dict(thsad= 300, sigma=3, texture_penalty= 1)
+}
+
+class adenoise:
+    """Preset class for _adaptive_denoiser."""
+    pass
+
+#genera a runtime i metodi, non lo puoi togliere
+for name, params in _PRESETS.items():
+    safe_name = name if name[0].isalpha() else f"_{name}"
+    def make_preset(preset_params):
+        def wrapper(cls, clip: vs.VideoNode, **kwargs):
+            final = {**preset_params, **kwargs}
+            return _adaptive_denoiser(clip, **final)
+        return classmethod(wrapper)
+    setattr(adenoise, safe_name, make_preset(params))
+
+
+def _adaptive_denoiser (
     clip: vs.VideoNode,
     thsad: int = 800,
     tr: int = 2,
@@ -31,7 +58,6 @@ def adaptive_denoiser (
     show_mask: int = 0,
     flat_penalty: float = 0.5,
     texture_penalty: float = 1.1,
-    profile_beta: Optional[str] = None
 ) -> vs.VideoNode:
     """
     Intensive Adaptive Denoise with default parameters for film scans (16mm).
@@ -67,25 +93,7 @@ def adaptive_denoiser (
     :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
     """
     
-    if profile_beta is not None:
-        if profile_beta == "65mm":
-            thsad=200
-            sigma=2
-            luma_mask_weaken=0.9
-            chroma_strength=0.5
-        elif profile_beta == "35mm":
-            thsad=400
-            sigma=4
-            luma_mask_weaken=0.8
-            chroma_strength=0.7
-        elif profile_beta == "16mm":
-            thsad=600
-            sigma=8
-        elif profile_beta == "8mm":
-            tr2=2
-            chroma_strength=1.5
-        else:
-            print("adaptive_denoiser: No such profile_beta exists.")
+
     core = vs.core
 
     if clip.format.color_family not in {vs.YUV}:
