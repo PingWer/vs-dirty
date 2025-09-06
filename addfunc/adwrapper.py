@@ -35,7 +35,7 @@ def mini_BM3D(
     kwargs = dict(kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range)
     
     if ref_gen:
-        if accel == "cuda_rtc":
+        if accel == "cuda_rtc" or None:
             ref = core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
         elif accel == "cuda":
             ref = core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
@@ -55,7 +55,7 @@ def mini_BM3D(
         kwargs = dict(kwargs, ref=ref)
 
 
-    if accel == "cuda_rtc":
+    if accel == "cuda_rtc" or None:
         return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
     elif accel == "cuda":
         return core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)

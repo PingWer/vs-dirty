@@ -5,7 +5,7 @@ except ImportError:
 
 try:
     from vsdenoise import nl_means
-    from vstools import get_y, depth
+    from vstools import get_y, depth, get_u, get_v
     import math
     from typing import Optional
     from .adwrapper import mini_BM3D
@@ -228,3 +228,53 @@ def flat_mask(
         final = mask.akarin.Expr(akarin_expr)
         return final
     return core.std.FrameEval(y, clip_src=[edges, mask_fine], prop_src=[y_std], eval=lambda n,f: select_mask(n,f))
+
+
+def edgemask(
+        clip: vs.VideoNode, 
+        ref:Optional[vs.VideoNode] = None, 
+        sigma: float = 10, 
+        blur_radius: int = 1, 
+        thr: int = 200,
+        presharp : float = 0.3,
+        postsharp : float = 0.6,
+        plane:int = 0)->vs.VideoNode:
+    core=vs.core
+
+    if plane == 0:
+        y = get_y(clip)
+    elif plane == 1:
+        y = get_u(clip)
+    elif plane == 2:
+        y = get_v(clip)
+    else:
+        return ValueError("Invalid plane number")
+        
+    if y.format.bits_per_sample != 16:
+        y = depth(y, 16)
+
+
+    if presharp!=0:
+        y=core.cas.CAS(y, sharpness=presharp, opt=0)
+
+    if ref is None:
+        y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=1, profile="HIGH"), 16)
+    else:
+        y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=1, profile="HIGH"), 16)
+
+    if postsharp !=0:
+        y_dn=core.cas.CAS(y_dn, sharpness=0.5, opt=0)
+
+    y_dn=nl_means(y_dn, h=1, tr=1, a=2)
+    
+    blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
+    blurred2 = core.std.BoxBlur(y_dn, hradius=blur_radius * 2, vradius=blur_radius * 2)
+
+    edges = core.std.Expr([
+        y_dn.std.Sobel(),
+        blurred1.std.Sobel(),
+        blurred2.std.Prewitt()
+    ], f"x {thr} > x 0 ?  y {thr} > y 0 ? + z {thr} > z 0 ? max")
+
+
+    return edges
