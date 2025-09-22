@@ -1,5 +1,6 @@
 import vapoursynth as vs
 core = vs.core
+from vstools import depth
 
 def mini_BM3D(
     clip: vs.VideoNode, 
@@ -18,6 +19,9 @@ def mini_BM3D(
                             If true while you passed a ref clip it will be used for the new ref.
     :return:                Denoised clip.
     """
+    if clip.format.bits_per_sample != 32:
+        clip = depth(clip, 32)
+
     if profile == "FAST" or "fast":
         block_step=[8,7,8,7]
         bm_range=[9,9,7,7]
