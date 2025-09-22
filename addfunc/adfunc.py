@@ -86,7 +86,7 @@ def _adaptive_denoiser (
                                 Recommended values: 0.5-2
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
-    :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True).
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True), 4 = Show the flatmask.
 
     :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
     """
@@ -112,6 +112,8 @@ def _adaptive_denoiser (
 
     if precision:
         flatmask = flat_mask(ref, tr=tr2, sigma=sigma)
+        if show_mask == 4:
+            return flatmask
         darken_luma_mask = core.std.Expr(
         [darken_luma_mask, flatmask],
         f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
