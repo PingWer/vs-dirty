@@ -106,7 +106,7 @@ def _adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = depth(mini_BM3D(depth(get_y(clip), 32), sigma=sigma*2, radius=1, profile="LC"), 16)
+    mfilter = depth(mini_BM3D(clip=depth(get_y(clip), 32), sigma=sigma*2, radius=1, profile="LC"), 16)
     mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 

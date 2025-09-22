@@ -6,7 +6,8 @@ def mini_BM3D(
     profile: str = "LC", 
     accel: str = None,
     ref_gen: bool = False,
-    **kwargs):
+    **kwargs
+) -> vs.VideoNode:
     """
     BM3D mini wrapper.
 
@@ -35,7 +36,7 @@ def mini_BM3D(
     kwargs = dict(kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range)
     
     if ref_gen:
-        if accel == "cuda_rtc" or None:
+        if accel is None or "cuda_rtc":
             try:
                 ref = core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
             except Exception:
@@ -52,8 +53,7 @@ def mini_BM3D(
             
         kwargs = dict(kwargs, ref=ref)
 
-
-    if accel == "cuda_rtc" or None:
+    if accel is None or "cuda_rtc":
         try:
             return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
         except Exception:
