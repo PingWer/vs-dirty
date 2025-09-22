@@ -26,7 +26,7 @@ _PRESETS = {
     "scan35mm": dict(thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7),
     "scan16mm": dict(thsad=600, sigma=8),
     "scan8mm" : dict(tr2=2, chroma_strength=1.5),
-    "digital" : dict(thsad= 300, sigma=3, texture_penalty= 1)
+    "digital" : dict(thsad=300, sigma=3, texture_penalty=1)
 }
 
 class adenoise:
@@ -87,8 +87,6 @@ def _adaptive_denoiser (
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
     :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True).
-    :param profile_beta:        Beta testing. Changes nearly all parameters. Bigger film = less noise.
-                                Accepted values: "65mm", "35mm", "16mm", "8mm"
 
     :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
     """
