@@ -120,7 +120,7 @@ def _adaptive_denoiser (
         
         darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
 
-    denoised = depth(mini_BM3D(get_y(depth(ref, 32)), sigma=sigma, radius=tr2, profile="HIGH"), 16)
+    denoised = depth(mini_BM3D(depth(get_y(ref), 32), sigma=sigma, radius=tr2, profile="HIGH"), 16)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
 
     if show_mask == 1:

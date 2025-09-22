@@ -36,38 +36,34 @@ def mini_BM3D(
     
     if ref_gen:
         if accel == "cuda_rtc" or None:
-            ref = core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
+            try:
+                ref = core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
+            except Exception:
+                try:
+                    ref = core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
+                except Exception:
+                    ref = core.bm3dcpu.BM3Dv2(clip, **kwargs)
         elif accel == "cuda":
             ref = core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
         elif accel == "hip":
             ref = core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
         elif accel == "cpu":
             ref = core.bm3dcpu.BM3Dv2(clip, **kwargs)
-    
-        try:
-            ref = core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
-        except Exception:
-            try:
-                ref = core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-            except Exception:
-                ref = core.bm3dcpu.BM3Dv2(clip, **kwargs)
             
         kwargs = dict(kwargs, ref=ref)
 
 
     if accel == "cuda_rtc" or None:
-        return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
+        try:
+            return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
+        except Exception:
+            try:
+                return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
+            except Exception:
+                return core.bm3dcpu.BM3Dv2(clip, **kwargs)
     elif accel == "cuda":
         return core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
     elif accel == "hip":
         return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
     elif accel == "cpu":
         return core.bm3dcpu.BM3Dv2(clip, **kwargs)
-
-    try:
-        return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
-    except Exception:
-        try:
-            return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-        except Exception:
-            return core.bm3dcpu.BM3Dv2(clip, **kwargs)
