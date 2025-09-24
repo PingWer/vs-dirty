@@ -1,16 +1,16 @@
 import vapoursynth as vs
 core = vs.core
-from typing import Sequence
-from vstools import depth, PlanesT, Sequ
+from typing import Optional
+from vstools import depth, PlanesT, get_y, get_v, get_u, get_r, get_g, get_b
 
 def _bm3d (
     clip: vs.VideoNode,
-    planes: Sequence[int],
-    accel: str = None,
+    accel: Optional[str],
     **kwargs
 ) -> vs.VideoNode:
-    
-    if accel is None or "cuda_rtc":
+    accel_u = None if accel is None else (accel.upper() if isinstance(accel, str) else str(accel).upper())
+
+    if accel is None or accel_u == "CUDA_RTC":
         try:
             return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
         except Exception:
@@ -18,18 +18,21 @@ def _bm3d (
                 return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
             except Exception:
                 return core.bm3dcpu.BM3Dv2(clip, **kwargs)
-    elif accel == "cuda":
+    elif accel_u == "CUDA":
         return core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
-    elif accel == "hip":
+    elif accel_u == "HIP":
         return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-    elif accel == "cpu":
+    elif accel_u == "CPU":
+        return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+    else:
+        # fallback
         return core.bm3dcpu.BM3Dv2(clip, **kwargs)
 
 
 def mini_BM3D(
     clip: vs.VideoNode, 
     profile: str = "LC", 
-    accel: str = None,
+    accel: Optional[str] = None,
     ref_gen: bool = False,
     planes: PlanesT = None,
     **kwargs
@@ -46,27 +49,51 @@ def mini_BM3D(
     :return:                Denoised clip.
     """
     if clip.format.bits_per_sample != 32:
-        clip = depth(clip, 32)
+        clipS = depth(clip, 32)
+    else:
+        clipS = clip
 
-    if profile == "FAST" or "fast":
-        block_step=[8,7,8,7]
-        bm_range=[9,9,7,7]
-        ps_range=[4,5]
-    elif profile == "LC" or "lc":
-        block_step=[6,5,6,5]
-        bm_range=[9,9,9,9]
-        ps_range=[4,5]
-    elif profile == "HIGH" or "high":
-        block_step=[3,2,3,2]
-        bm_range=[16,16,16,16]
-        ps_range=[7,8]
+    profile_u = profile.upper() if isinstance(profile, str) else str(profile).upper()
+    if profile_u == "FAST":
+        block_step = [8,7,8,7]
+        bm_range = [9,9,7,7]
+        ps_range = [4,5]
+    elif profile_u == "LC":
+        block_step = [6,5,6,5]
+        bm_range = [9,9,9,9]
+        ps_range = [4,5]
+    elif profile_u == "HIGH":
+        block_step = [3,2,3,2]
+        bm_range = [16,16,16,16]
+        ps_range = [7,8]
     else:
         raise ValueError("mini_BM3D: Profile not recognized.")
-    
-    kwargs = dict(kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range)
-    
-    if ref_gen:
-        ref = _bm3d(clip, planes, accel, **kwargs)
-        kwargs = dict(kwargs, ref=ref)
 
-    return _bm3d(clip, planes, accel, **kwargs)
+    kwargs = dict(kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range)
+
+    num_planes = clip.format.num_planes
+    if clip.format.color_family == vs.GRAY:
+        return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
+
+    if planes is None:
+        return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
+
+    if isinstance(planes, int):
+        planes = [planes]
+    planes = list(dict.fromkeys(int(p) for p in planes))
+
+    if planes == [0,1,2]:
+        return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
+    
+    if clip.format.color_family == vs.RGB:
+        get_plane = [get_r, get_g, get_b]
+    elif clip.format.color_family == vs.YUV:
+        get_plane = [get_y, get_u, get_v]
+    else:
+        raise ValueError("mini_BM3D: Unsupported color family.")
+
+    filtered_planes = [
+        _bm3d(get_plane[i](clipS), accel, **kwargs) if i in planes and 0 <= i < num_planes else get_plane[i](clipS)
+        for i in range(num_planes)
+    ]
+    return depth(core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family), clip.format.bits_per_sample)

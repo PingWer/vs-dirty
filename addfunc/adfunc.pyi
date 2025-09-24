@@ -19,6 +19,9 @@ class adenoise:
     flat_penalty: float = 0.5,
     texture_penalty: float = 1.1,
     )->vs.VideoNode: ...
+    """
+    sarebbe da inserirle qui le descrizioni dei valori imho
+    """
 
     @staticmethod
     def scan35mm(clip:vs.VideoNode, 
