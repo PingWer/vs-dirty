@@ -1,12 +1,37 @@
 import vapoursynth as vs
 core = vs.core
-from vstools import depth
+from typing import Sequence
+from vstools import depth, PlanesT, Sequ
+
+def _bm3d (
+    clip: vs.VideoNode,
+    planes: Sequence[int],
+    accel: str = None,
+    **kwargs
+) -> vs.VideoNode:
+    
+    if accel is None or "cuda_rtc":
+        try:
+            return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
+        except Exception:
+            try:
+                return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
+            except Exception:
+                return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+    elif accel == "cuda":
+        return core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
+    elif accel == "hip":
+        return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
+    elif accel == "cpu":
+        return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+
 
 def mini_BM3D(
     clip: vs.VideoNode, 
     profile: str = "LC", 
     accel: str = None,
     ref_gen: bool = False,
+    planes: PlanesT = None,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -17,6 +42,7 @@ def mini_BM3D(
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu".
     :param ref_gen:         Generate a reference clip for block-matching, you can also pass ref with kwargs.
                             If true while you passed a ref clip it will be used for the new ref.
+    :param planes:          Which planes to process. Defaults to all planes.
     :return:                Denoised clip.
     """
     if clip.format.bits_per_sample != 32:
@@ -40,34 +66,7 @@ def mini_BM3D(
     kwargs = dict(kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range)
     
     if ref_gen:
-        if accel is None or "cuda_rtc":
-            try:
-                ref = core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
-            except Exception:
-                try:
-                    ref = core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-                except Exception:
-                    ref = core.bm3dcpu.BM3Dv2(clip, **kwargs)
-        elif accel == "cuda":
-            ref = core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
-        elif accel == "hip":
-            ref = core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-        elif accel == "cpu":
-            ref = core.bm3dcpu.BM3Dv2(clip, **kwargs)
-            
+        ref = _bm3d(clip, planes, accel, **kwargs)
         kwargs = dict(kwargs, ref=ref)
 
-    if accel is None or "cuda_rtc":
-        try:
-            return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
-        except Exception:
-            try:
-                return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-            except Exception:
-                return core.bm3dcpu.BM3Dv2(clip, **kwargs)
-    elif accel == "cuda":
-        return core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
-    elif accel == "hip":
-        return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
-    elif accel == "cpu":
-        return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+    return _bm3d(clip, planes, accel, **kwargs)
