@@ -80,12 +80,12 @@ def mini_BM3D(
     if clip.format.color_family == vs.GRAY:
         return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
 
+    if planes is None:
+        planes = [0,1,2]
+
     if isinstance(planes, int):
         planes = [planes]
     planes = list(dict.fromkeys(int(p) for p in planes))
-
-    if None in planes:
-        planes = [0,1,2]
 
     if clip.format.color_family == vs.RGB:
         get_plane = [get_r, get_g, get_b]
