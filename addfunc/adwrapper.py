@@ -45,6 +45,7 @@ def mini_BM3D(
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu".
     :param planes:          Which planes to process. Defaults to all planes.
+    :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
     :return:                Denoised clip.
     """
     if clip.format.bits_per_sample != 32:
@@ -103,7 +104,7 @@ def mini_BM3D(
             yd = _bm3d(y, accel, **kwargs)
         else:
             yd = y
-            
+
         if 1 in planes or 2 in planes:
             y = y.resize.Bicubic(u.width, u.height, filter_param_a=0, filter_param_b=0)
             clip444 = core.std.ShufflePlanes([y, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
