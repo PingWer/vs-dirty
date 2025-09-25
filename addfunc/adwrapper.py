@@ -12,17 +12,19 @@ def _bm3d (
 
     if accel is None or accel_u == "CUDA_RTC":
         try:
-            return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs, fast=False)
+            return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs)
         except Exception:
             try:
-                return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
+                return core.bm3dhip.BM3Dv2(clip, **kwargs)
             except Exception:
+                del kwargs["fast"]
                 return core.bm3dcpu.BM3Dv2(clip, **kwargs)
     elif accel_u == "CUDA":
-        return core.bm3dcuda.BM3Dv2(clip, **kwargs, fast=False)
+        return core.bm3dcuda.BM3Dv2(clip, **kwargs)
     elif accel_u == "HIP":
-        return core.bm3dhip.BM3Dv2(clip, **kwargs, fast=False)
+        return core.bm3dhip.BM3Dv2(clip, **kwargs)
     elif accel_u == "CPU":
+        del kwargs["fast"]
         return core.bm3dcpu.BM3Dv2(clip, **kwargs)
     else:
         # fallback
@@ -33,7 +35,6 @@ def mini_BM3D(
     clip: vs.VideoNode, 
     profile: str = "LC", 
     accel: Optional[str] = None,
-    ref_gen: bool = False,
     planes: PlanesT = None,
     **kwargs
 ) -> vs.VideoNode:
@@ -43,8 +44,6 @@ def mini_BM3D(
     :param clip:            Clip to process. Must be 32 bit float format.
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu".
-    :param ref_gen:         Generate a reference clip for block-matching, you can also pass ref with kwargs.
-                            If true while you passed a ref clip it will be used for the new ref.
     :param planes:          Which planes to process. Defaults to all planes.
     :return:                Denoised clip.
     """
@@ -69,31 +68,55 @@ def mini_BM3D(
     else:
         raise ValueError("mini_BM3D: Profile not recognized.")
 
-    kwargs = dict(kwargs, block_step=block_step, bm_range=bm_range, ps_range=ps_range)
+    kwargs = dict(
+        kwargs, 
+        block_step=block_step, 
+        bm_range=bm_range, 
+        ps_range=ps_range, 
+        fast=False
+    )
 
     num_planes = clip.format.num_planes
     if clip.format.color_family == vs.GRAY:
-        return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
-
-    if planes is None:
         return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
 
     if isinstance(planes, int):
         planes = [planes]
     planes = list(dict.fromkeys(int(p) for p in planes))
 
-    if planes == [0,1,2]:
-        return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
-    
+    if None in planes:
+        planes = [0,1,2]
+
     if clip.format.color_family == vs.RGB:
         get_plane = [get_r, get_g, get_b]
+        filtered_planes = [
+            _bm3d(get_plane[i](clipS), accel, **kwargs) if i in planes and 0 <= i < num_planes else get_plane[i](clipS)
+            for i in range(num_planes)
+        ]
+        dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
+    
     elif clip.format.color_family == vs.YUV:
-        get_plane = [get_y, get_u, get_v]
+        y = get_y(clipS)
+        u = get_u(clipS)
+        v = get_v(clipS)
+        if 0 in planes:
+            yd = _bm3d(y, accel, **kwargs)
+        else:
+            yd = y
+            
+        if 1 in planes or 2 in planes:
+            y = y.resize.Bicubic(u.width, u.height, filter_param_a=0, filter_param_b=0)
+            clip444 = core.std.ShufflePlanes([y, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+            clip444 = _bm3d(clip444, accel, chroma=True, **kwargs)
+            if 1 in planes:
+                u = get_u(clip444)
+            if 2 in planes:
+                v = get_v(clip444)
+        dclip = core.std.ShufflePlanes([yd, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+            
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
+    
+    return depth(dclip, clip.format.bits_per_sample)
 
-    filtered_planes = [
-        _bm3d(get_plane[i](clipS), accel, **kwargs) if i in planes and 0 <= i < num_planes else get_plane[i](clipS)
-        for i in range(num_planes)
-    ]
-    return depth(core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family), clip.format.bits_per_sample)
+
