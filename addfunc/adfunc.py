@@ -106,7 +106,7 @@ def _adaptive_denoiser (
     #Denoise
     mvtools = MVTools(clip, planes=0)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = depth(mini_BM3D(clip=get_y(clip), sigma=sigma*2, radius=1, profile="LC"), 16)
+    mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*2, radius=1, profile="LC", planes=0)
     mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
     ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
 
@@ -120,7 +120,7 @@ def _adaptive_denoiser (
         
         darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
 
-    denoised = depth(mini_BM3D(get_y(ref), sigma=sigma, radius=tr2, profile="HIGH"), 16)
+    denoised = mini_BM3D(get_y(ref), sigma=sigma, radius=tr2, profile="HIGH", planes=0)
     luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
 
     if show_mask == 1:
