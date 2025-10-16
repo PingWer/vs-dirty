@@ -18,143 +18,149 @@ if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akar
     raise ImportError("'dfttest', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
 
-#la desc dei preset la puoi mettere solo qui dentro il codice, 
-#ma non verrà mostrata nella preview di vscode (limitazione di vscode)
-#Stessa cosa vale per la desc di _adpative_denoiser, non si vedrà se non entrando dentro la funzione, 
-#l'alternativa è metterla come desc della classe adenoise, scegli tu 
-_PRESETS = {
-    "scan65mm": dict(thsad=200, sigma=2, luma_mask_weaken=0.9, chroma_strength=0.5),
-    "scan35mm": dict(thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7),
-    "scan16mm": dict(thsad=600, sigma=8),
-    "scan8mm" : dict(tr2=2, chroma_strength=1.5),
-    "digital" : dict(thsad=300, sigma=3, texture_penalty=1)
-}
-
 class adenoise:
     """Preset class for _adaptive_denoiser."""
-    pass
 
-#genera a runtime i metodi, non lo puoi togliere
-for name, params in _PRESETS.items():
-    safe_name = name if name[0].isalpha() else f"_{name}"
-    def make_preset(preset_params):
-        def wrapper(cls, clip: vs.VideoNode, **kwargs):
-            final = {**preset_params, **kwargs}
-            return _adaptive_denoiser(clip, **final)
-        return classmethod(wrapper)
-    setattr(adenoise, safe_name, make_preset(params))
+    def _adaptive_denoiser (
+        clip: vs.VideoNode,
+        thsad: int = 500,
+        tr: int = 2,
+        tr2: int = 1,
+        sigma: float = 6,
+        luma_mask_weaken: float = 0.75,
+        luma_mask_thr: float = 50,
+        chroma_strength: float = 1.0,
+        precision: bool = True,
+        chroma_masking: bool = False,
+        show_mask: int = 0,
+        flat_penalty: float = 0.5,
+        texture_penalty: float = 1.1,
+    ) -> vs.VideoNode:
+        """
+        Intensive Adaptive Denoise with default parameters for film scans (16mm).
 
+        Three denoisers are applied: mc_degrain (luma), NLMeans (chroma), and BM3D (luma).
+        NLMeans uses mc_degrain as reference to remove dirt spots and scanner noise from the clip,
+        while mc_degrain affects only the luma, which is then passed to BM3D for a second denoising pass.
+        If precision = True, BM3D receives a new mc_degrain reference based on the already cleaned clip (slower).
 
-def _adaptive_denoiser (
-    clip: vs.VideoNode,
-    thsad: int = 800,
-    tr: int = 2,
-    tr2: int = 1,
-    sigma: float = 12,
-    luma_mask_weaken: float = 0.75,
-    luma_mask_thr: float = 50,
-    chroma_strength: float = 1.0,
-    precision: bool = True,
-    chroma_masking: bool = False,
-    show_mask: int = 0,
-    flat_penalty: float = 0.5,
-    texture_penalty: float = 1.1,
-) -> vs.VideoNode:
-    """
-    Intensive Adaptive Denoise with default parameters for film scans (16mm).
+        Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
+        Note: Luma masks are more sensitive to variations than the sigma value for the final result.
 
-    Three denoisers are applied: mc_degrain (luma), NLMeans (chroma), and BM3D (luma).
-    NLMeans uses mc_degrain as reference to remove dirt spots and scanner noise from the clip,
-    while mc_degrain affects only the luma, which is then passed to BM3D for a second denoising pass.
-    If precision = True, BM3D receives a new mc_degrain reference based on the already cleaned clip (slower).
+        :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with void dither).
+        :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
+                                    Recommended values: 300-800
+        :param tr:                  Temporal radius for mvtools and nlm.
+                                    Recommended values: 2-3 (1 means no temporal denoise).
+        :param tr2:                 Temporal radius for BM3D.
+                                    Recommended values: 1-2 (0 means no temporal denoise).
+        :param sigma:               Sigma for BM3D (luma denoise strength).
+                                    Recommended values: 3-10. If precision = True, you can safely double he value used.
+        :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger denoise.
+                                    Recommended values: 0.6-0.9
+        :param luma_mask_thr:       Mi chiamo ping e non metto le descrizioni.
+        :param chroma_strength:     Strength for NLMeans (chroma denoise strength).
+                                    Recommended values: 0.5-2
+        :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
+        :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
+        :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True), 4 = Show the flatmask.
 
-    Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
-    Note: Luma masks are more sensitive to variations than the sigma value for the final result.
-
-    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with void dither).
-    :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
-                                Recommended values: 300-800
-    :param tr:                  Temporal radius for mvtools and nlm.
-                                Recommended values: 2-3 (1 means no temporal denoise).
-    :param tr2:                 Temporal radius for BM3D.
-                                Recommended values: 1-2 (0 means no temporal denoise).
-    :param sigma:               Sigma for BM3D (luma denoise strength).
-                                Recommended values: 3-10. If precision = True, you can safely double he value used.
-    :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger denoise.
-                                Recommended values: 0.6-0.9
-    :param luma_mask_thr:       Mi chiamo ping e non metto le descrizioni.
-    :param chroma_strength:     Strength for NLMeans (chroma denoise strength).
-                                Recommended values: 0.5-2
-    :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
-    :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
-    :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True), 4 = Show the flatmask.
-
-    :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
-    """
-    
-
-    core = vs.core
-
-    if clip.format.color_family not in {vs.YUV}:
-        raise ValueError('adaptive_denoiser: only YUV formats are supported')
-
-    if clip.format.bits_per_sample != 16:
-        clip = depth(clip, 16)
-
-    lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
-    darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
-
-    #Denoise
-    mvtools = MVTools(clip)
-    vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-    mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*2, radius=1, profile="LC", planes=0)
-    mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
-    ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
-
-    if precision:
-        flatmask = flat_mask(ref, tr=tr2, sigma=sigma)
-        if show_mask == 4:
-            return flatmask
-        darken_luma_mask = core.std.Expr(
-        [darken_luma_mask, flatmask],
-        f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
+        :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
+        """
         
-        darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
 
-    denoised = mini_BM3D(get_y(ref), sigma=sigma, radius=tr2, profile="HIGH", planes=0)
-    luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
+        core = vs.core
 
-    if show_mask == 1:
-        return darken_luma_mask
+        if clip.format.color_family not in {vs.YUV}:
+            raise ValueError('adaptive_denoiser: only YUV formats are supported')
+
+        if clip.format.bits_per_sample != 16:
+            clip = depth(clip, 16)
+
+        lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
+        darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
+
+        #Denoise
+        mvtools = MVTools(clip)
+        vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
+        mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*2, radius=1, profile="LC", planes=0)
+        mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+        ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
+
+        if precision:
+            flatmask = flat_mask(ref, tr=tr2, sigma=sigma)
+            if show_mask == 4:
+                return flatmask
+            darken_luma_mask = core.std.Expr(
+            [darken_luma_mask, flatmask],
+            f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
+            
+            darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
+
+        denoised = mini_BM3D(get_y(ref), sigma=sigma, radius=tr2, profile="HIGH", planes=0)
+        luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
+
+        if show_mask == 1:
+            return darken_luma_mask
 
 
-    #Chroma NLMeans
-    if chroma_strength <= 0:
-        chroma_denoised = clip
-    else:
-        chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=ref, planes=[1,2])
+        #Chroma NLMeans
+        if chroma_strength <= 0:
+            chroma_denoised = clip
+        else:
+            chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=ref, planes=[1,2])
+        
+        #TODO
+        #chroma mask fine tuning
+        v_mask = None #Per evitare UnboundLocalError
+        u_mask = None
+
+        if chroma_masking or chroma_strength<=0:
+            v=get_v(clip)
+            v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
+            v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
+            u=get_u(clip)
+            u_mask= luma_mask_man(u, t=1.5, s=2, a=0)
+            u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
+            chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
+        
+        if show_mask == 2:
+            return v_mask
+        elif show_mask == 3:
+            return u_mask
+        
+        final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
+        return final
     
-    #TODO
-    #chroma mask fine tuning
-    v_mask = None #Per evitare UnboundLocalError
-    u_mask = None
-
-    if chroma_masking or chroma_strength<=0:
-        v=get_v(clip)
-        v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
-        v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
-        u=get_u(clip)
-        u_mask= luma_mask_man(u, t=1.5, s=2, a=0)
-        u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
-        chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
+    # Presets
+    @staticmethod
+    def scan65mm (clip:vs.VideoNode, thsad: int = 200, tr: int = 2, tr2: int = 1, sigma: float = 2, luma_mask_weaken: float = 0.9, luma_mask_thr: float = 50, chroma_strength: float = 0.5, precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+        """ changes: thsad=200, sigma=2, luma_mask_weaken=0.9, chroma_strength=0.5 """
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
+    @staticmethod
+    def scan35mm (clip:vs.VideoNode, thsad: int = 400, tr: int = 2, tr2: int = 1, sigma: float = 4, luma_mask_weaken: float = 0.8, luma_mask_thr: float = 50, chroma_strength: float = 0.7, precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+        """ changes: thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7 """
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
-    if show_mask == 2:
-        return v_mask
-    elif show_mask == 3:
-        return u_mask
+    @staticmethod
+    def scan16mm (clip:vs.VideoNode, thsad: int = 600, tr: int = 2, tr2: int = 1, sigma: float = 8, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+        """ changes: thsad=600, sigma=8 """
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
-    final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
-    return final
+    @staticmethod
+    def scan8mm (clip:vs.VideoNode, thsad: int = 800, tr: int = 2, tr2: int = 2, sigma: float = 12, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.5, precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+        """ changes: thsad=800, sigma=12, tr2=2, chroma_strength=1.5 """
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
+    
+    @staticmethod
+    def digital (clip:vs.VideoNode, thsad: int = 300, tr: int = 2, tr2: int = 1, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1)->vs.VideoNode:
+        """ changes: thsad=300, sigma=3, texture_penalty=1 """
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
+    
+    @staticmethod
+    def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, tr2: int = 1, sigma: float = 6, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+        """ default profile """
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
 
 #TODO
 #Ported from fvsfunc 
