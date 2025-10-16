@@ -17,6 +17,7 @@ core = vs.core
 if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
     raise ImportError("'dfttest', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
+
 #la desc dei preset la puoi mettere solo qui dentro il codice, 
 #ma non verrà mostrata nella preview di vscode (limitazione di vscode)
 #Stessa cosa vale per la desc di _adpative_denoiser, non si vedrà se non entrando dentro la funzione, 
@@ -104,7 +105,7 @@ def _adaptive_denoiser (
     darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
 
     #Denoise
-    mvtools = MVTools(clip, planes=0)
+    mvtools = MVTools(clip)
     vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
     mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*2, radius=1, profile="LC", planes=0)
     mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
@@ -223,7 +224,6 @@ def auto_deblock(
     final = core.std.MaskedMerge(deblock, clip, darken_luma_mask, planes=planes)
 
     return final
-
 
 #TODO
 def increase_dynamic(
@@ -427,3 +427,20 @@ def deblock(
     union = core.akarin.Expr([deleted8, deleted4], "x y max")
 
     return union
+
+#TODO
+def msaa2x(
+    clip: vs.VideoNode,
+    thrmask: int = 4000
+) -> vs.VideoNode:
+    from vsscale import ArtCNN
+    from addfunc import adfunc, admask #wtf
+
+    denoise = adfunc.adenoise.scan65mm(clip)
+    emask = admask.edgemask(denoise, sigma=50, blur_radius=2)
+    emask = emask.std.BinarizeMask(threshold=thrmask)
+    emask = Morpho.erosion(emask)
+    upsc = ArtCNN().C4F32().scale(denoise, clip.width*2, clip.height*2)
+    aa = core.resize.Spline16(upsc, clip.width, clip.height)
+    merged = core.std.MaskedMerge(clip, aa, emask)
+    return merged
