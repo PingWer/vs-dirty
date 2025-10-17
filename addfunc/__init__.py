@@ -5,4 +5,4 @@ Tools made by PingWer74 and Man3500 for adaptive denoise, masks and other stuff.
 from .adfunc import *
 from .admask import *
 from .adwrapper import *
-from ..dirtyfixer import *
+from dirtyfixer import *

@@ -436,17 +436,14 @@ def deblock(
 
 #TODO
 def msaa2x(
-    clip: vs.VideoNode,
-    thrmask: int = 4000
+    clip: vs.VideoNode
 ) -> vs.VideoNode:
     from vsscale import ArtCNN
     from addfunc import adfunc, admask #wtf
 
-    denoise = adfunc.adenoise.scan65mm(clip)
+    denoise = adfunc.adenoise.scan65mm(clip, precision=False)
     emask = admask.edgemask(denoise, sigma=50, blur_radius=2)
-    emask = emask.std.BinarizeMask(threshold=thrmask)
-    emask = Morpho.erosion(emask)
-    upsc = ArtCNN().C4F32().scale(denoise, clip.width*2, clip.height*2)
+    upsc = ArtCNN().C4F32_DN().scale(denoise, clip.width*2, clip.height*2)
     aa = core.resize.Spline16(upsc, clip.width, clip.height)
     merged = core.std.MaskedMerge(clip, aa, emask)
     return merged
