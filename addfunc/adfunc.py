@@ -30,6 +30,7 @@ class adenoise:
         luma_mask_weaken: float = 0.75,
         luma_mask_thr: float = 50,
         chroma_strength: float = 1.0,
+        chroma_denoise: str = "nlm",
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -61,6 +62,8 @@ class adenoise:
         :param luma_mask_thr:       Mi chiamo ping e non metto le descrizioni.
         :param chroma_strength:     Strength for NLMeans (chroma denoise strength).
                                     Recommended values: 0.5-2
+        :param chroma_denoise:      Denoiser for chroma.
+                                    Accepted values: "nlm", "cbm3d"
         :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
         :param mask_type:           0 = Standard Luma mask, 1 = Custom Luma mask (more linear) , 2 = Custom Luma mask (less linear).
         :param show_mask:           1 = Show the first luma mask, 2 = Show the Chroma V Plane mask (if chroma_masking = True), 3 = Show the Chroma U Plane mask (if chroma_masking = True), 4 = Show the flatmask.
@@ -97,18 +100,20 @@ class adenoise:
             
             darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
 
+        if show_mask == 1:
+            return darken_luma_mask
+        
         denoised = mini_BM3D(get_y(ref), sigma=sigma, radius=tr2, profile="HIGH", planes=0)
         luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
 
-        if show_mask == 1:
-            return darken_luma_mask
-
-
-        #Chroma NLMeans
+        #Chroma denoise
         if chroma_strength <= 0:
             chroma_denoised = clip
         else:
-            chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=ref, planes=[1,2])
+            if chroma_denoise == "nlm":
+                chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=ref, planes=[1,2])
+            if chroma_denoise == "cbm3d":
+                chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=ref, planes=[1,2])
         
         #TODO
         #chroma mask fine tuning
