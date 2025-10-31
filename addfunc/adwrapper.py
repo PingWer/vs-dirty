@@ -5,12 +5,12 @@ from vstools import depth, PlanesT, get_y, get_v, get_u, get_r, get_g, get_b
 
 def _bm3d (
     clip: vs.VideoNode,
-    accel: Optional[str],
+    accel: Optional[str] = "AUTO",
     **kwargs
 ) -> vs.VideoNode:
     accel_u = None if accel is None else (accel.upper() if isinstance(accel, str) else str(accel).upper())
 
-    if accel is None or accel_u == "CUDA_RTC":
+    if accel_u in ("AUTO", "CUDA_RTC"):
         try:
             return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs)
         except Exception:
