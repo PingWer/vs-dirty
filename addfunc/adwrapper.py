@@ -8,7 +8,7 @@ def _bm3d (
     accel: Optional[str] = "AUTO",
     **kwargs
 ) -> vs.VideoNode:
-    accel_u = None if accel is None else (accel.upper() if isinstance(accel, str) else str(accel).upper())
+    accel_u = accel.upper() if accel is not None else "AUTO"
 
     if accel_u in ("AUTO", "CUDA_RTC"):
         try:
