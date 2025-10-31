@@ -3,34 +3,6 @@ core = vs.core
 from typing import Optional
 from vstools import depth, PlanesT, get_y, get_v, get_u, get_r, get_g, get_b
 
-def _bm3d (
-    clip: vs.VideoNode,
-    accel: Optional[str] = "AUTO",
-    **kwargs
-) -> vs.VideoNode:
-    accel_u = accel.upper() if accel is not None else "AUTO"
-
-    if accel_u not in ("AUTO", "CUDA_RTC", "CUDA", "HIP", "CPU"):
-        raise ValueError(f"Accel unknown: {accel}")
-
-    if accel_u in ("AUTO", "CUDA_RTC"):
-        try:
-            return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs)
-        except Exception:
-            try:
-                return core.bm3dhip.BM3Dv2(clip, **kwargs)
-            except Exception:
-                kwargs.pop("fast", None)
-                return core.bm3dcpu.BM3Dv2(clip, **kwargs)
-    elif accel_u == "CUDA":
-        return core.bm3dcuda.BM3Dv2(clip, **kwargs)
-    elif accel_u == "HIP":
-        return core.bm3dhip.BM3Dv2(clip, **kwargs)
-    elif accel_u == "CPU":
-        kwargs.pop("fast", None)
-        return core.bm3dcpu.BM3Dv2(clip, **kwargs)
-
-
 def mini_BM3D(
     clip: vs.VideoNode, 
     profile: str = "LC", 
@@ -48,6 +20,34 @@ def mini_BM3D(
     :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
     :return:                Denoised clip.
     """
+
+    def _bm3d (
+        clip: vs.VideoNode,
+        accel: Optional[str] = "AUTO",
+        **kwargs
+    ) -> vs.VideoNode:
+        accel_u = accel.upper() if accel is not None else "AUTO"
+
+        if accel_u not in ("AUTO", "CUDA_RTC", "CUDA", "HIP", "CPU"):
+            raise ValueError(f"Accel unknown: {accel}")
+
+        if accel_u in ("AUTO", "CUDA_RTC"):
+            try:
+                return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs)
+            except Exception:
+                try:
+                    return core.bm3dhip.BM3Dv2(clip, **kwargs)
+                except Exception:
+                    kwargs.pop("fast", None)
+                    return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+        elif accel_u == "CUDA":
+            return core.bm3dcuda.BM3Dv2(clip, **kwargs)
+        elif accel_u == "HIP":
+            return core.bm3dhip.BM3Dv2(clip, **kwargs)
+        elif accel_u == "CPU":
+            kwargs.pop("fast", None)
+            return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+    
     if clip.format.bits_per_sample != 32:
         clipS = depth(clip, 32)
     else:
