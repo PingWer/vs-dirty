@@ -10,6 +10,9 @@ def _bm3d (
 ) -> vs.VideoNode:
     accel_u = accel.upper() if accel is not None else "AUTO"
 
+    if accel_u not in ("AUTO", "CUDA_RTC", "CUDA", "HIP", "CPU"):
+        raise ValueError(f"Accel unknown: {accel}")
+
     if accel_u in ("AUTO", "CUDA_RTC"):
         try:
             return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs)
@@ -17,17 +20,14 @@ def _bm3d (
             try:
                 return core.bm3dhip.BM3Dv2(clip, **kwargs)
             except Exception:
-                del kwargs["fast"]
+                kwargs.pop("fast", None)
                 return core.bm3dcpu.BM3Dv2(clip, **kwargs)
     elif accel_u == "CUDA":
         return core.bm3dcuda.BM3Dv2(clip, **kwargs)
     elif accel_u == "HIP":
         return core.bm3dhip.BM3Dv2(clip, **kwargs)
     elif accel_u == "CPU":
-        del kwargs["fast"]
-        return core.bm3dcpu.BM3Dv2(clip, **kwargs)
-    else:
-        # fallback
+        kwargs.pop("fast", None)
         return core.bm3dcpu.BM3Dv2(clip, **kwargs)
 
 
@@ -43,7 +43,7 @@ def mini_BM3D(
 
     :param clip:            Clip to process. Must be 32 bit float format.
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
-    :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu".
+    :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu", "auto".
     :param planes:          Which planes to process. Defaults to all planes.
     :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
     :return:                Denoised clip.
@@ -82,8 +82,7 @@ def mini_BM3D(
         return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
 
     if planes is None:
-        planes = [0,1,2]
-
+        planes = [0, 1, 2]
     if isinstance(planes, int):
         planes = [planes]
     planes = list(dict.fromkeys(int(p) for p in planes))
@@ -95,29 +94,28 @@ def mini_BM3D(
             for i in range(num_planes)
         ]
         dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
-    
+
     elif clip.format.color_family == vs.YUV:
         y = get_y(clipS)
         u = get_u(clipS)
         v = get_v(clipS)
-        if 0 in planes:
-            yd = _bm3d(y, accel, **kwargs)
-        else:
-            yd = y
+
+        yd = _bm3d(y, accel, **kwargs) if 0 in planes else y
 
         if 1 in planes or 2 in planes:
-            y = y.resize.Bicubic(u.width, u.height, filter_param_a=0, filter_param_b=0)
-            clip444 = core.std.ShufflePlanes([y, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+            y_resized = y.resize.Bicubic(u.width, u.height, filter_param_a=0, filter_param_b=0)
+            clip444 = core.std.ShufflePlanes([y_resized, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
             clip444 = _bm3d(clip444, accel, chroma=True, **kwargs)
             if 1 in planes:
                 u = get_u(clip444)
             if 2 in planes:
                 v = get_v(clip444)
+
         dclip = core.std.ShufflePlanes([yd, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
-            
+
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
-    
+
     return depth(dclip, clip.format.bits_per_sample)
 
 
