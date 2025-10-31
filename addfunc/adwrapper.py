@@ -53,27 +53,34 @@ def mini_BM3D(
     else:
         clipS = clip
 
+    profiles = {
+        "FAST": {
+            "block_step": [8, 7, 8, 7],
+            "bm_range": [9, 9, 7, 7],
+            "ps_range": [4, 5],
+        },
+        "LC": {
+            "block_step": [6, 5, 6, 5],
+            "bm_range": [9, 9, 9, 9],
+            "ps_range": [4, 5],
+        },
+        "HIGH": {
+            "block_step": [3, 2, 3, 2],
+            "bm_range": [16, 16, 16, 16],
+            "ps_range": [7, 8],
+        },
+    }
+
     profile_u = profile.upper() if isinstance(profile, str) else str(profile).upper()
-    if profile_u == "FAST":
-        block_step = [8,7,8,7]
-        bm_range = [9,9,7,7]
-        ps_range = [4,5]
-    elif profile_u == "LC":
-        block_step = [6,5,6,5]
-        bm_range = [9,9,9,9]
-        ps_range = [4,5]
-    elif profile_u == "HIGH":
-        block_step = [3,2,3,2]
-        bm_range = [16,16,16,16]
-        ps_range = [7,8]
-    else:
-        raise ValueError("mini_BM3D: Profile not recognized.")
+
+    if profile_u not in profiles:
+        raise ValueError(f"mini_BM3D: Profile '{profile}' not recognized.")
+
+    params = profiles[profile_u]
 
     kwargs = dict(
-        kwargs, 
-        block_step=block_step, 
-        bm_range=bm_range, 
-        ps_range=ps_range, 
+        kwargs,
+        **params,
         fast=False
     )
 
