@@ -7,7 +7,6 @@ try:
     from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
     from vstools import get_y, get_u, get_v, PlanesT, depth
     from vsmasktools import Morpho
-    from typing import Optional
     from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
     from .adwrapper import mini_BM3D
 except ImportError:
@@ -36,6 +35,7 @@ class adenoise:
         show_mask: int = 0,
         flat_penalty: float = 0.5,
         texture_penalty: float = 1.1,
+        **kwargs
     ) -> vs.VideoNode:
         """
         Intensive Adaptive Denoise with default parameters for film scans (16mm).
@@ -83,15 +83,18 @@ class adenoise:
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
 
-        #Denoise
-        mvtools = MVTools(clip)
-        vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-        mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*2, radius=1, profile="LC", planes=0)
-        mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
-        ref = mc_degrain(clip, prefilter=Prefilter.DFTTEST, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr)
+        #Degrain
+        if "is_digital" not in kwargs:
+            mvtools = MVTools(clip)
+            vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
+            mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*1.5, radius=1, profile="LC", planes=0)
+            mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+            degrain = mc_degrain(clip, prefilter=Prefilter.DFTTEST, blksize=8, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr, limit=1)
+        else:
+            degrain = clip
 
         if precision:
-            flatmask = flat_mask(ref, tr=tr2, sigma=sigma)
+            flatmask = flat_mask(degrain, tr=tr2, sigma=sigma)
             if show_mask == 4:
                 return flatmask
             darken_luma_mask = core.std.Expr(
@@ -103,17 +106,18 @@ class adenoise:
         if show_mask == 1:
             return darken_luma_mask
         
-        denoised = mini_BM3D(get_y(ref), sigma=sigma, radius=tr2, profile="HIGH", planes=0)
+        denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr2, profile="HIGH", planes=0)
         luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) ##denoise applied to darker areas
 
         #Chroma denoise
+        
         if chroma_strength <= 0:
             chroma_denoised = clip
         else:
             if chroma_denoise == "nlm":
-                chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=ref, planes=[1,2])
+                chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=degrain, planes=[1,2])
             if chroma_denoise == "cbm3d":
-                chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=ref, planes=[1,2])
+                chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=degrain, planes=[1,2])
         
         #TODO
         #chroma mask fine tuning
@@ -160,7 +164,7 @@ class adenoise:
     @staticmethod
     def digital (clip:vs.VideoNode, thsad: int = 300, tr: int = 2, tr2: int = 1, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1)->vs.VideoNode:
         """ changes: thsad=300, sigma=3, texture_penalty=1 """
-        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
+        return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty, is_digital=True)
     
     @staticmethod
     def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, tr2: int = 1, sigma: float = 6, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:

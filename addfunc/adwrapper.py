@@ -122,7 +122,7 @@ def mini_BM3D(
 
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
-
-    return depth(dclip, clip.format.bits_per_sample)
+    
+    return depth(dclip, clip.format.bits_per_sample, dither_type="sierra_2_4a")
 
 
