@@ -8,6 +8,7 @@ def mini_BM3D(
     profile: str = "LC", 
     accel: Optional[str] = None,
     planes: PlanesT = None,
+    ref: Optional[vs.VideoNode] = None,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -24,6 +25,7 @@ def mini_BM3D(
     def _bm3d (
         clip: vs.VideoNode,
         accel: Optional[str] = "AUTO",
+        ref: Optional[vs.VideoNode] = None,
         **kwargs
     ) -> vs.VideoNode:
         accel_u = accel.upper() if accel is not None else "AUTO"
@@ -33,25 +35,34 @@ def mini_BM3D(
 
         if accel_u in ("AUTO", "CUDA_RTC"):
             try:
-                return core.bm3dcuda_rtc.BM3Dv2(clip, **kwargs)
+                return core.bm3dcuda_rtc.BM3Dv2(clip, ref, **kwargs)
             except Exception:
                 try:
-                    return core.bm3dhip.BM3Dv2(clip, **kwargs)
+                    return core.bm3dhip.BM3Dv2(clip, ref, **kwargs)
                 except Exception:
                     kwargs.pop("fast", None)
-                    return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+                    return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "CUDA":
-            return core.bm3dcuda.BM3Dv2(clip, **kwargs)
+            return core.bm3dcuda.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "HIP":
-            return core.bm3dhip.BM3Dv2(clip, **kwargs)
+            return core.bm3dhip.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "CPU":
             kwargs.pop("fast", None)
-            return core.bm3dcpu.BM3Dv2(clip, **kwargs)
+            return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
     
     if clip.format.bits_per_sample != 32:
         clipS = depth(clip, 32)
     else:
         clipS = clip
+    
+    if ref is not None:
+        if ref.format.bits_per_sample != 32:
+            refS = depth(ref, 32)
+        else:
+            refS = ref
+    else:
+        refS = None
+
 
     profiles = {
         "FAST": {
@@ -86,7 +97,7 @@ def mini_BM3D(
 
     num_planes = clip.format.num_planes
     if clip.format.color_family == vs.GRAY:
-        return depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
+        return depth(_bm3d(clipS, accel, refS, **kwargs), clip.format.bits_per_sample) if refS is None else depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
 
     if planes is None:
         planes = [0, 1, 2]
@@ -107,12 +118,30 @@ def mini_BM3D(
         u = get_u(clipS)
         v = get_v(clipS)
 
-        yd = _bm3d(y, accel, **kwargs) if 0 in planes else y
+        yr = ur = vr = None
+        if refS is not None:
+            if refS.format.num_planes == 3:
+                yr = get_y(refS); ur = get_u(refS); vr = get_v(refS)
+            elif refS.format.num_planes == 1:
+                yr = refS
+            else:
+                raise ValueError("mini_BM3D: When providing a reference clip for YUV, it must have 1 or 3 planes.")
+
+        yd = _bm3d(y, accel, ref=yr, **kwargs) if 0 in planes else y
 
         if 1 in planes or 2 in planes:
-            y_resized = y.resize.Bicubic(u.width, u.height, filter_param_a=0, filter_param_b=0)
+            y_resized = y.resize.Spline36(u.width, u.height)
+
+            clipr444 = None
+            if yr is not None and refS is not None and refS.format.num_planes == 3:
+                yr_resized = yr.resize.Spline36(u.width, u.height)
+                clipr444 = core.std.ShufflePlanes([yr_resized, ur, vr], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+            elif yr is not None and refS is not None and refS.format.num_planes == 1:
+                clipr444 = yr
+
             clip444 = core.std.ShufflePlanes([y_resized, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
-            clip444 = _bm3d(clip444, accel, chroma=True, **kwargs)
+            clip444 = _bm3d(clip444, accel, ref=clipr444, chroma=True, **kwargs) if clipr444 is not None else _bm3d(clip444, accel, chroma=True, **kwargs)
+
             if 1 in planes:
                 u = get_u(clip444)
             if 2 in planes:
@@ -122,7 +151,7 @@ def mini_BM3D(
 
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
-    
+
     return depth(dclip, clip.format.bits_per_sample, dither_type="sierra_2_4a")
 
 
