@@ -137,13 +137,12 @@ def luma_mask_ping(
 
 def flat_mask(
         clip: vs.VideoNode, 
-        blur_radius: int = 1, 
-        tr: int = 1, 
-        sigma: Optional[float] = None, 
-        edge_thr_high: Optional[float] = None, 
-        edge_thr_low: float = 0.001, 
+        blur_radius: int = 1,  
+        sigma: Optional[float] = 2, 
+        thr_high: Optional[float] = None, 
+        thr_low: float = 0.03, 
+        edge_thr: float = 0.015,
         debug: bool = False,
-        dntype: int = 1,
         ref: vs.VideoNode = None
         )-> vs.VideoNode:
     """
@@ -152,13 +151,11 @@ def flat_mask(
     The default values of sigma are inteded to be used with noisy and grany video. It's reccomended to pass a not denoised clip, or at least a really light denoised one in order to prevent detail loss. 
 
     :param clip:            Clip to process.
-    :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content, increse if the content is a serious amount of blocking).
-    :param tr:              Temporal radius for the BM3D denoiser (temporal radius must be the same of whatever temporal denoiser you are using if tr>1 ref clip and vectors shoulf be passed as well).
-    :param edge_thr_low:    Threshold for the low edge detection (ideally the impact of the changes may very, so it's better to leave it as default).
-    :param sigma:           Sigma value for the BM3D denoiser or NlMeans depending on dntype. If None, a default value of 5.0 or 0.8 is used. (BM3D suggeste)
-    :param edge_thr_high:   Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
+    :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content, increse if it has a serious amount of blocking).
+    :param thr_low:         Threshold for the low edge detection (This is a very sensible value, so it's better to leave it as default).
+    :param sigma:           Sigma value for the BM3D denoiser. Higher values produce stronger denoising (this value should be higher then the standard, usually 1-2 for regular content, 4-5 for noisy).
+    :param thr_high:        Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
     :param debug:           If True, prints the standard deviation and threshold values for each frame.
-    :param dntype:          Denoiser type. 1 for BM3D, 2 for NLM.
     :return:                Flat mask.
     """
 
@@ -182,35 +179,9 @@ def flat_mask(
 
     y_std = core.std.FrameEval(y, _add_stddev, prop_src=[stats_avg, stats_sq], clip_src=[stats_avg, stats_sq])
 
-    if dntype == 1:
-        if sigma is None:
-            sigma = 5.0
-        if ref is None:
-            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=tr, profile="HIGH"), 16)
-        else:
-            y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=tr, profile="HIGH"), 16)
+    edges = edgemask(y, ref=ref, sigma=(sigma if sigma is not None else 0.0), blur_radius=blur_radius, thr=edge_thr)
 
-    elif dntype == 2:
-        if sigma is None:
-            sigma = 0.8
-        if ref is None:
-            y_dn = nl_means(y, h=sigma, tr=tr, planes=0)
-        else:
-            y_dn = nl_means(y, h=sigma, tr=tr, ref=ref, planes=0)
-        y_dn= y_dn.std.Median().std.Median()
-    else:
-        raise ValueError("dntype must be 1 (BM3D) or 2 (NLM)")
-    
-    blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
-    blurred2 = core.std.BoxBlur(blurred1, hradius=blur_radius * 2, vradius=blur_radius * 2)
-
-    edges = core.std.Expr([
-        y_dn.std.Sobel(),
-        blurred1.std.Sobel(),
-        blurred2.std.Prewitt()
-    ], "x y max z max")
-
-    mask_fine = edges.std.Binarize(threshold=int(edge_thr_low * 65535))
+    mask_fine = edges.std.Binarize(threshold=scale_value(edges, thr_low, w_int=True))
 
     matrix3x3 = "x x[-1,-1] + x[0,-1] x[1,-1] + + x[-1,0] x[1,0] + x[-1,1] x[0,1] + + + x[1,1] +"
     matrix5x5_ext = " x[-2,-1] x[-2,0] + x[-2,1] + x[-1,-2] x[0,-2] + x[1,-2] + + x[-1,2] x[0,2] + x[1,2] + x[2,-1] x[2,0] + x[2,1] + + +"
@@ -218,8 +189,8 @@ def flat_mask(
 
     def select_mask(n, f) -> vs.VideoNode:
         stdev = f.props['std_dev']
-        thr = edge_thr_high if edge_thr_high is not None else auto_thr_high(stdev)
-        mask_medium = edges.std.Binarize(threshold=int(thr * 65535))
+        thr = thr_high if thr_high is not None else auto_thr_high(stdev)
+        mask_medium = edges.std.Binarize(scale_value(edges, thr, w_int=True))
         mask = core.akarin.Expr([mask_fine, mask_medium], "x y min").std.Invert()
         mask = mask.std.Minimum().std.Maximum()
         if debug:
@@ -235,11 +206,23 @@ def edgemask(
         ref:Optional[vs.VideoNode] = None, 
         sigma: float = 10, 
         blur_radius: int = 1, 
-        thr: int = 200,
+        thr: float = 0.015,
         presharp : float = 0.3,
         postsharp : float = 0.6,
         plane:int = 0)->vs.VideoNode:
     core=vs.core
+    '''
+    This is a custom edge mask (made by PingWer) based on well know operators with particular combination. Really effective as mask for dehalo or sharpening filtering.
+    :param clip:        Clip to process.
+    :param ref:         Reference clip for denoising (really usefull for grainy or noise content, to avoid details loss).
+    :param sigma:       Sigma value for the BM3D denoiser. Higher values produce stronger denoising (this value should be higher then the standard, usually 1-2 for regular content, 4-5 for noisy).
+    :param blur_radius: Blur radius for the box blur. Default is 1 (should be fine for most content, increse if it has a serious amount of blocking).
+    :param thr:         Threshold for the edge detection. Value should be between 0-1. Lower values produce more edges (don't go lower then default).
+    :param presharp:    Amount of sharpening to apply before denoising (never go higher then 0.8).
+    :param postsharp:   Amount of sharpening to apply after denoising (never go higher then 0.8).
+    :param plane:       Plane to process (0 for Y, 1 for U, 2 for V).
+    :return:            Edge mask.
+    '''
 
     if plane == 0:
         y = get_y(clip)
@@ -253,14 +236,15 @@ def edgemask(
     if y.format.bits_per_sample != 16:
         y = depth(y, 16)
 
+    thr_scaled = scale_value(clip, thr, w_int=True)
 
     if presharp!=0:
         y=core.cas.CAS(y, sharpness=presharp, opt=0)
 
     if ref is None:
-        y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, radius=1, profile="HIGH"), 16)
+        y_dn = mini_BM3D(y, sigma=sigma, radius=1, profile="HIGH")
     else:
-        y_dn = depth(mini_BM3D(depth(y, 32), sigma=sigma, ref=ref, radius=1, profile="HIGH"), 16)
+        y_dn = mini_BM3D(y, sigma=sigma, ref=ref, radius=1, profile="HIGH")
 
     if postsharp !=0:
         y_dn=core.cas.CAS(y_dn, sharpness=0.5, opt=0)
@@ -274,7 +258,36 @@ def edgemask(
         y_dn.std.Sobel(),
         blurred1.std.Sobel(),
         blurred2.std.Prewitt()
-    ], f"x {thr} > x 0 ?  y {thr} > y 0 ? + z {thr} > z 0 ? max")
-
+    ], f"x {thr_scaled} > x 0 ?  y {thr_scaled} > y 0 ? + z {thr_scaled} > z 0 ? max")
 
     return edges
+
+
+
+def scale_value(
+        clip: vs.VideoNode,
+        value: float,
+        w_int: bool = True,
+        )-> float:
+    """
+    Scales a value based on the bit depth of the clip.
+
+    :param clip:    Clip to process.
+    :param value:   Value to scale (0.0 - 1.0).
+    :return:        Scaled value.
+    """
+    if clip.format is None:
+        raise ValueError("scale_value: Clip must have a defined format.")
+    
+    if clip.format.bits_per_sample is None:
+        raise ValueError("scale_value: Clip must have a defined bit depth.")
+    
+    if not (0.0 <= value <= 1.0):
+        raise ValueError("scale_value: Value must be between 0.0 and 1.0.")
+    
+    max_val = (1 << clip.format.bits_per_sample) - 1
+
+    if w_int:
+        return int(value * max_val)
+    else:
+        return value * max_val
