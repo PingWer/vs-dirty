@@ -180,7 +180,7 @@ def auto_deblock(
     planes: PlanesT = None
 ) -> vs.VideoNode:
     """
-    Funzione che si spera funzioni, dovrebbe fare deblock MPEG2 ma essendo portata da avisynth di eoni fa dubito lo faccia bene.
+    Deblocker 8x8 and other.
     """
 
     core=vs.core
@@ -195,36 +195,9 @@ def auto_deblock(
     if clip.format.bits_per_sample != 16:
         clip = depth(clip, 16)
 
-    # Scale values to handle high bit depths
-    # shift = clip.format.bits_per_sample - 8
-    # edgevalue = edgevalue << shift
-    # maxvalue = (1 << clip.format.bits_per_sample) - 1
-
-    # orig è una edgemask, che significa orig lo sa solo jesus
-    # orig = core.std.Prewitt(clip)
-    # Se x è maggiore o uguale di edgevalue (def:24) allora restituisci maxvalue altrimenti x
-    # È quasi un binarize ma i valori sotto edgevalue rimangono uguali
-    # orig = core.std.Expr(orig, f"x {edgevalue} >= {maxvalue} x ?")
-    # Doppia Median sulla edgemask
-    # orig_d = orig.std.Median().std.Convolution(matrix=[1, 2, 1, 2, 4, 2, 1, 2, 1])
-
-    # Passa la clip con un po' meno grana a vsdenoise.deblock_qed
     predeblock = deblock_qed(clip.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2), planes=planes)
 
-    # Se questi vengono svolti anche se fast = True farebbe molto ridere, sigma regola la forza, ne vengono fatti diversi
-    # Analogamente al nostro approccio su Adaptive Denoise si potrebbe usare un signolo DFT e una mask per la forza
     deblock = core.dfttest.DFTTest(predeblock, sigma=sigma, tbsize=tbsize, planes=planes)
-
-    # Prende le differenze di statistiche tra edgemask prima e dopo la Median
-    # difforig = core.std.PlaneStats(orig, orig_d, prop='Orig')
-    # Prende le differenze di statistiche tra la clip e il frame successivo
-    # diffnext = core.std.PlaneStats(clip, clip.std.DeleteFrames([0]), prop='YNext')
-    # Frame eval che prende la clip, gli effettua eval_deblock_strength passandogli le statistiche
-
-    # Da implementare per usare le informazioni per regolare la mask
-    # autodeblock = core.std.FrameEval(clip, partial(eval_deblock_strength,
-    #                                  clip=clip, deblock=deblock),
-    #                                  prop_src=[difforig,diffnext])
     
     if (mask_type == 0):
         lumamask = luma_mask(clip)
@@ -259,57 +232,6 @@ def increase_dynamic(
     lumamask = core.std.ShufflePlanes(clips=[lumamask, u, v], planes=[0,0,0], colorfamily=vs.YUV)
     clip = core.std.Merge(clip, lumamask, weight=0.1)
     return clip
-
-def deblock_old(
-    clip: vs.VideoNode,
-    thrvalue: int = 22,
-    show_mask: bool = False
-)-> vs.VideoNode:
-    """
-    Teoricamente allo stato attuale deblock_qed fa la stessa cosa o quasi
-    """
-        
-    core=vs.core
-
-    maxvalue = (1 << clip.format.bits_per_sample) - 1
-    thr = (thrvalue / 255) * maxvalue
-
-    y, u, v = clip.std.SplitPlanes()
-    ymask = luma_mask_man(y, t=1, a=20, s=20)
-    # umask = luma_mask_man(u, t=1, a=20, s=20)
-    # vmask = luma_mask_man(v, t=1, a=20, s=20)
-    umask = u
-    vmask = v
-
-    diag = "x x[1,1] - 2 / abs x x[1,-1] - 2 / abs + x x[-1,1] - 2 / abs x x[-1,-1] - 2 / abs + +"
-    hor = "x x[1,0] - abs x x[-1,0] - abs + x x[2,0] - 2 / abs x x[-2,0] - 2 / abs + + x x[3,0] - 4 / abs x x[-3,0] - 4 / abs + +"
-    ver = "x x[0,1] - abs x x[0,-1] - abs + x x[0,2] - 2 / abs x x[0,-2] - 2 / abs + + x x[0,3] - 4 / abs x x[0,-3] - 4 / abs + +"
-    ymask1 = core.akarin.Expr([ymask], f"{hor} {diag} +").std.Binarize(thr)
-    ymask2 = core.akarin.Expr([ymask], f"{ver} {diag} +").std.Binarize(thr)
-
-    umask1 = core.akarin.Expr([umask], f"{hor} {diag} +").std.Binarize(thr)
-    umask2 = core.akarin.Expr([umask], f"{ver} {diag} +").std.Binarize(thr)
-
-    vmask1 = core.akarin.Expr([vmask], f"{hor} {diag} +").std.Binarize(thr)
-    vmask2 = core.akarin.Expr([vmask], f"{ver} {diag} +").std.Binarize(thr)
-
-    ymask = core.std.Expr([ymask1, ymask2], "x y max")
-    umask = core.std.Expr([umask1, umask2], "x y max")
-    vmask = core.std.Expr([vmask1, vmask2], "x y max")
-
-    y1 = deblock_qed(y, quant=(30,32))
-    y1 = core.dfttest.DFTTest(y1, sigma=25, tbsize=1, sosize=8)
-    y1 = core.std.MaskedMerge(y, y1, ymask)
-    u1 = deblock_qed(u, quant=(30,32))
-    u1 = core.dfttest.DFTTest(u1, sigma=25, tbsize=1, sosize=8)
-    u1 = core.std.MaskedMerge(u, u1, umask)
-    v1 = deblock_qed(v, quant=(30,32))
-    v1 = core.dfttest.DFTTest(v1, sigma=25, tbsize=1, sosize=8)
-    v1 = core.std.MaskedMerge(v, v1, vmask)
-
-    if show_mask is True:
-        return core.std.ShufflePlanes(clips=[ymask, umask, vmask], planes=[0,0,0], colorfamily=vs.YUV)
-    return core.std.ShufflePlanes(clips=[y1, u1, v1], planes=[0,0,0], colorfamily=vs.YUV)  
 
 def deblock(
     clip: vs.VideoNode
