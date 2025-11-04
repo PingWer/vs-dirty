@@ -1,16 +1,15 @@
-try:
-    import vapoursynth as vs
-except ImportError:
-    raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
 
-try:
-    from vsdenoise import nl_means
-    from vstools import get_y, depth, get_u, get_v
-    import math
-    from typing import Optional
-    from .adwrapper import mini_BM3D
-except ImportError:
-   raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+import vapoursynth as vs
+
+from vsdenoise import nl_means
+from vstools import get_y, depth, get_u, get_v
+import math
+from typing import Optional
+from .adwrapper import mini_BM3D
+
+if not (hasattr(vs.core, 'cas') or hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'akarin')):
+    raise ImportError("'cas', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
+
 
 def _get_stdev(avg: float, sq_avg: float) -> float:
     return abs(sq_avg - avg ** 2) ** 0.5

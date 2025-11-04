@@ -1,18 +1,13 @@
-try:
-    import vapoursynth as vs
-except ImportError:
-    raise ImportError('Vapoursynth R71> is required. Download it via: pip install vapoursynth')
+import vapoursynth as vs
 
-try:
-    from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
-    from vstools import get_y, get_u, get_v, PlanesT, depth
-    from vsmasktools import Morpho
-    from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
-    from .adwrapper import mini_BM3D
-except ImportError:
-    raise ImportError('vsdenoise, vstools, vsmasktools are required. Download them via: pip install vsjetpack. Other depedencies can be found here: https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack' )
+from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
+from vstools import get_y, get_u, get_v, PlanesT, depth
+from vsmasktools import Morpho
+from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
+from .adwrapper import mini_BM3D
 
 core = vs.core
+
 if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
     raise ImportError("'dfttest', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
@@ -20,7 +15,9 @@ if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akar
 class adenoise:
     """Preset class for _adaptive_denoiser."""
 
-    def _adaptive_denoiser (
+    @classmethod
+    def _adaptive_denoiser(
+        cls,
         clip: vs.VideoNode,
         thsad: int = 500,
         tr: int = 2,
@@ -29,7 +26,7 @@ class adenoise:
         luma_mask_weaken: float = 0.75,
         luma_mask_thr: float = 50,
         chroma_strength: float = 1.0,
-        chroma_denoise: str = "nlm",
+        chroma_denoise: str = "nlm", 
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -94,7 +91,7 @@ class adenoise:
             degrain = clip
 
         if precision:
-            flatmask = flat_mask(degrain, tr=tr2, sigma=sigma)
+            flatmask = flat_mask(degrain, sigma=sigma*1.5)
             if show_mask == 4:
                 return flatmask
             darken_luma_mask = core.std.Expr(
@@ -119,7 +116,7 @@ class adenoise:
             if chroma_denoise == "cbm3d":
                 chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=degrain, planes=[1,2])
         
-        #TODO
+        #TODO 
         #chroma mask fine tuning
         v_mask = None #Per evitare UnboundLocalError
         u_mask = None
