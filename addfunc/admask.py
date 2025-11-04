@@ -5,7 +5,7 @@ from vsdenoise import nl_means
 from vstools import get_y, depth, get_u, get_v
 import math
 from typing import Optional
-from .adwrapper import mini_BM3D
+from .adutils import mini_BM3D
 
 if not (hasattr(vs.core, 'cas') or hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'akarin')):
     raise ImportError("'cas', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
