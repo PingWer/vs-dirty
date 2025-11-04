@@ -4,8 +4,6 @@ from typing import Optional
 from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
 from vstools import get_y, get_u, get_v, PlanesT, depth
 from vsmasktools import Morpho
-from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
-from .adutils import mini_BM3D
 
 core = vs.core
 
@@ -222,6 +220,7 @@ class adenoise:
         
 
         core = vs.core
+        from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
 
         if clip.format.color_family not in {vs.YUV}:
             raise ValueError('adaptive_denoiser: only YUV formats are supported')
@@ -335,6 +334,8 @@ def auto_deblock(
     """
 
     core=vs.core
+    from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
+    
     try:
         from functools import partial
     except ImportError:
@@ -375,6 +376,7 @@ def increase_dynamic(
     """
     
     core=vs.core
+    from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
 
     lumamask = luma_mask_man(clip, t=t, s=s, a=a)
     lumamask = lumamask.std.Invert()
