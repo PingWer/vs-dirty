@@ -2,7 +2,7 @@ import vapoursynth as vs
 
 from typing import Optional
 from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
-from vstools import get_y, get_u, get_v, PlanesT, depth
+from vstools import get_y, get_u, get_v, PlanesT, depth, plane
 from vsmasktools import Morpho
 
 core = vs.core
@@ -16,6 +16,8 @@ def mini_BM3D(
     accel: Optional[str] = None,
     planes: PlanesT = None,
     ref: Optional[vs.VideoNode] = None,
+    dither: Optional[str] = "error_diffusion",
+    fast: Optional[bool] = False,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -26,9 +28,10 @@ def mini_BM3D(
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu", "auto".
     :param planes:          Which planes to process. Defaults to all planes.
     :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
+    :param kwargs:          Accepts DitherType class names.
+    :param fast:            Use CPU+GPU, adds overhead.
     :return:                Denoised clip.
     """
-    from vstools import get_r, get_g, get_b
 
     def _bm3d (
         clip: vs.VideoNode,
@@ -40,7 +43,7 @@ def mini_BM3D(
 
         if accel_u not in ("AUTO", "CUDA_RTC", "CUDA", "HIP", "CPU"):
             raise ValueError(f"Accel unknown: {accel}")
-
+        
         if accel_u in ("AUTO", "CUDA_RTC"):
             try:
                 return core.bm3dcuda_rtc.BM3Dv2(clip, ref, **kwargs)
@@ -99,8 +102,8 @@ def mini_BM3D(
 
     kwargs = dict(
         kwargs,
-        **params,
-        fast=False
+        fast=fast,
+        **params
     )
 
     num_planes = clip.format.num_planes
@@ -114,9 +117,8 @@ def mini_BM3D(
     planes = list(dict.fromkeys(int(p) for p in planes))
 
     if clip.format.color_family == vs.RGB:
-        get_plane = [get_r, get_g, get_b]
         filtered_planes = [
-            _bm3d(get_plane[i](clipS), accel, **kwargs) if i in planes and 0 <= i < num_planes else get_plane[i](clipS)
+            _bm3d(plane(clipS, [i]), accel, **kwargs) if i in planes and 0 <= i < num_planes else plane(clipS, [i])
             for i in range(num_planes)
         ]
         dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
@@ -141,10 +143,10 @@ def mini_BM3D(
             y_resized = y.resize.Spline36(u.width, u.height)
 
             clipr444 = None
-            if yr is not None and refS is not None and refS.format.num_planes == 3:
+            if refS is not None and refS.format.num_planes == 3:
                 yr_resized = yr.resize.Spline36(u.width, u.height)
                 clipr444 = core.std.ShufflePlanes([yr_resized, ur, vr], planes=[0, 0, 0], colorfamily=clip.format.color_family)
-            elif yr is not None and refS is not None and refS.format.num_planes == 1:
+            elif refS is not None and refS.format.num_planes == 1:
                 clipr444 = yr
 
             clip444 = core.std.ShufflePlanes([y_resized, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
@@ -160,7 +162,7 @@ def mini_BM3D(
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
 
-    return depth(dclip, clip.format.bits_per_sample, dither_type="sierra_2_4a")
+    return depth(dclip, clip.format.bits_per_sample, dither_type=dither)
 
 class adenoise:
     """Preset class for _adaptive_denoiser."""
