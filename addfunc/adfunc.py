@@ -162,7 +162,7 @@ def mini_BM3D(
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
 
-    return depth(dclip, clip.format.bits_per_sample, dither_type=dither if dither is not None else "error_diffusion")
+    return depth(dclip, clip.format.bits_per_sample, dither_type=dither if dither is not None else "none")
 
 class adenoise:
     """Preset class for _adaptive_denoiser."""
