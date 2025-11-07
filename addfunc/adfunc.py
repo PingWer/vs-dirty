@@ -118,7 +118,7 @@ def mini_BM3D(
 
     if clip.format.color_family == vs.RGB:
         filtered_planes = [
-            _bm3d(plane(clipS, [i]), accel, **kwargs) if i in planes and 0 <= i < num_planes else plane(clipS, [i])
+            _bm3d(plane(clipS, i), accel, **kwargs) if i in planes and 0 <= i < num_planes else plane(clipS, i)
             for i in range(num_planes)
         ]
         dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
@@ -162,7 +162,7 @@ def mini_BM3D(
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
 
-    return depth(dclip, clip.format.bits_per_sample, dither_type=dither)
+    return depth(dclip, clip.format.bits_per_sample, dither_type=dither if dither is not None else "error_diffusion")
 
 class adenoise:
     """Preset class for _adaptive_denoiser."""

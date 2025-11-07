@@ -1,4 +1,3 @@
-
 import vapoursynth as vs
 
 from vsdenoise import nl_means
@@ -6,6 +5,7 @@ from vstools import get_y, depth, get_u, get_v
 import math
 from typing import Optional
 from .adfunc import mini_BM3D
+from .adutils import scale_binary_value
 
 if not (hasattr(vs.core, 'cas') or hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'akarin')):
     raise ImportError("'cas', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
@@ -180,7 +180,7 @@ def flat_mask(
 
     edges = edgemask(y, ref=ref, sigma=(sigma if sigma is not None else 0.0), blur_radius=blur_radius, thr=edge_thr)
 
-    mask_fine = edges.std.Binarize(threshold=scale_value(edges, thr_low, w_int=True))
+    mask_fine = edges.std.Binarize(threshold=scale_binary_value(edges, thr_low, return_int=True))
 
     matrix3x3 = "x x[-1,-1] + x[0,-1] x[1,-1] + + x[-1,0] x[1,0] + x[-1,1] x[0,1] + + + x[1,1] +"
     matrix5x5_ext = " x[-2,-1] x[-2,0] + x[-2,1] + x[-1,-2] x[0,-2] + x[1,-2] + + x[-1,2] x[0,2] + x[1,2] + x[2,-1] x[2,0] + x[2,1] + + +"
@@ -189,7 +189,7 @@ def flat_mask(
     def select_mask(n, f) -> vs.VideoNode:
         stdev = f.props['std_dev']
         thr = thr_high if thr_high is not None else auto_thr_high(stdev)
-        mask_medium = edges.std.Binarize(scale_value(edges, thr, w_int=True))
+        mask_medium = edges.std.Binarize(scale_binary_value(edges, thr, return_int=True))
         mask = core.akarin.Expr([mask_fine, mask_medium], "x y min").std.Invert()
         mask = mask.std.Minimum().std.Maximum()
         if debug:
@@ -235,7 +235,7 @@ def edgemask(
     if y.format.bits_per_sample != 16:
         y = depth(y, 16)
 
-    thr_scaled = scale_value(clip, thr, w_int=True)
+    thr_scaled = scale_binary_value(clip, thr, return_int=True)
 
     if presharp!=0:
         y=core.cas.CAS(y, sharpness=presharp, opt=0)
@@ -260,33 +260,3 @@ def edgemask(
     ], f"x {thr_scaled} > x 0 ?  y {thr_scaled} > y 0 ? + z {thr_scaled} > z 0 ? max")
 
     return edges
-
-
-
-def scale_value(
-        clip: vs.VideoNode,
-        value: float,
-        w_int: bool = True,
-        )-> float:
-    """
-    Scales a value based on the bit depth of the clip.
-
-    :param clip:    Clip to process.
-    :param value:   Value to scale (0.0 - 1.0).
-    :return:        Scaled value.
-    """
-    if clip.format is None:
-        raise ValueError("scale_value: Clip must have a defined format.")
-    
-    if clip.format.bits_per_sample is None:
-        raise ValueError("scale_value: Clip must have a defined bit depth.")
-    
-    if not (0.0 <= value <= 1.0):
-        raise ValueError("scale_value: Value must be between 0.0 and 1.0.")
-    
-    max_val = (1 << clip.format.bits_per_sample) - 1
-
-    if w_int:
-        return int(value * max_val)
-    else:
-        return value * max_val
