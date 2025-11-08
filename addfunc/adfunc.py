@@ -517,20 +517,42 @@ def deblock(
 
     return union
 
-#TODO
+# TODO
+# Vedere come gestire meglio la edgemask (probabilmente sarà incluso dentro edgemask)
+# Aggiungere il passaggio del prototipo della funzione di adenoise
+# kwargs dovrebbero essere solo per la mask
+# C'è da decidere se vogliamo il Binarize o no, perchè potrebbe anche non essere strettamente necessario, al massimo si può avere un whiten dei bordi di una determinata quantità
+# Però il binarize è utile se l'aliasing è generale su tutto l'anime (come su Orb che fixa anche gli sfondi) 
 def msaa2x(
-    clip: vs.VideoNode
+    clip: vs.VideoNode,
+    ref: Optional[vs.VideoNode] = None,
+    sigma: float=2,
+    mask: bool=False,
+    thr: float=0.2,
+    **kwargs
 ) -> vs.VideoNode:
     """
     Upscales only the edges with AI (ArtCNN DN) and downscales them.
+
+    :param clip:            Clip to apply msaa2x.
+    :param ref:             Reference clip used to crate the edgemask (should be the original not filtered clip). If None, clip will be used.
+    :param sigma:           Sigma value used in the creation of the edgemask.
+    :param mask:            If True will return the mask used.
+    :param thr:            Threshold used for Binarize the clip, only 0-1 value area allowed. (Never go below 0.1, increase the value for noisy or grainy content)
     """
     from vsscale import ArtCNN
     from addfunc import admask
-
-    denoise = adenoise.scan65mm(clip, precision=False)
-    emask = admask.edgemask(denoise, sigma=50, blur_radius=2)
-    upsc = ArtCNN().C4F32_DN().scale(denoise, clip.width*2, clip.height*2)
+    from addfunc.adutils import scale_binary_value
+    from vsmasktools import Morpho
+    if ref is None:
+        ref = adenoise.digital(clip, precision=False)
+    emask = admask.edgemask(ref, sigma=sigma)
+    emask = emask.std.Binarize(threshold=scale_binary_value(emask, thr, return_int=True))
+    if mask:
+        return emask
+    upsc = ArtCNN().C4F32_DN().scale(clip, clip.width*2, clip.height*2)
     aa = core.resize.Spline16(upsc, clip.width, clip.height)
     merged = core.std.MaskedMerge(clip, aa, emask)
+    merged = core.std.ShufflePlanes([merged,clip, clip], planes=[0, 1, 2], colorfamily=clip.format.color_family)
     return merged
 
