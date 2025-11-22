@@ -526,9 +526,9 @@ def deblock(
 def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
-    sigma: float=2,
-    mask: bool=False,
-    thr: float=0.2,
+    sigma: float = 2,
+    mask: bool = False,
+    thr: float = None,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -538,7 +538,7 @@ def msaa2x(
     :param ref:             Reference clip used to crate the edgemask (should be the original not filtered clip). If None, clip will be used.
     :param sigma:           Sigma value used in the creation of the edgemask.
     :param mask:            If True will return the mask used.
-    :param thr:            Threshold used for Binarize the clip, only 0-1 value area allowed. (Never go below 0.1, increase the value for noisy or grainy content)
+    :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. (Never go below 0.1, increase the value for noisy or grainy content)
     """
     from vsscale import ArtCNN
     from addfunc import admask
@@ -547,7 +547,8 @@ def msaa2x(
     if ref is None:
         ref = adenoise.digital(clip, precision=False)
     emask = admask.edgemask(ref, sigma=sigma)
-    emask = emask.std.Binarize(threshold=scale_binary_value(emask, thr, return_int=True))
+    if thr is not None:
+        emask = emask.std.Binarize(threshold=scale_binary_value(emask, thr, return_int=True))
     if mask:
         return emask
     upsc = ArtCNN().C4F32_DN().scale(clip, clip.width*2, clip.height*2)
