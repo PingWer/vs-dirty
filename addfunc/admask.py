@@ -1,11 +1,7 @@
 import vapoursynth as vs
-
-from vsdenoise import nl_means
-from vstools import get_y, depth, get_u, get_v
-import math
 from typing import Optional
-from .adfunc import mini_BM3D
-from .adutils import scale_binary_value
+
+core = vs.core
 
 if not (hasattr(vs.core, 'cas') or hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'akarin')):
     raise ImportError("'cas', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
@@ -29,8 +25,7 @@ def luma_mask (
         sthmax: float = 0.95,
         sthmin: float = 1.4,
 )-> vs.VideoNode :
-    
-    core = vs.core
+    from vstools import get_y
     
     luma = get_y(clip)
     lumamask = core.std.Expr(
@@ -60,7 +55,7 @@ def luma_mask_man (
     :param a:               
     :return:                Luma mask.
     """
-    core = vs.core
+    from vstools import get_y
     
     luma = get_y(clip)
     f=1/3
@@ -105,6 +100,8 @@ def luma_mask_ping(
     """
 
     core = vs.core
+    from vstools import get_y
+    import math
 
     bit_depth = clip.format.bits_per_sample
     max_val = (1 << bit_depth) - 1
@@ -159,6 +156,8 @@ def flat_mask(
     """
 
     core = vs.core
+    from vstools import get_y, depth
+    from .adutils import scale_binary_value
 
     def _add_stddev(n, f):
         core = vs.core
@@ -222,6 +221,10 @@ def edgemask(
     :param plane:       Plane to process (0 for Y, 1 for U, 2 for V).
     :return:            Edge mask.
     '''
+    from vstools import get_y, depth, get_u, get_v
+    from .adutils import scale_binary_value
+    from .adfunc import mini_BM3D
+    from vsdenoise import nl_means
 
     if plane == 0:
         y = get_y(clip)

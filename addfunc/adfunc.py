@@ -1,9 +1,7 @@
 import vapoursynth as vs
 
 from typing import Optional
-from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode, deblock_qed
-from vstools import get_y, get_u, get_v, PlanesT, depth, plane
-from vsmasktools import Morpho
+from vstools import PlanesT
 
 core = vs.core
 
@@ -32,7 +30,8 @@ def mini_BM3D(
     :param fast:            Use CPU+GPU, adds overhead.
     :return:                Denoised clip.
     """
-
+    from vstools import depth, plane, get_y, get_u, get_v
+    
     def _bm3d (
         clip: vs.VideoNode,
         accel: Optional[str] = "AUTO",
@@ -60,6 +59,7 @@ def mini_BM3D(
         elif accel_u == "CPU":
             kwargs.pop("fast", None)
             return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
+        
     
     if clip.format.bits_per_sample != 32:
         clipS = depth(clip, 32)
@@ -220,9 +220,12 @@ class adenoise:
         :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2 or 3.
         """
         
+        from vstools import get_y, get_u, get_v, depth
+        from vsmasktools import Morpho
+        from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
+        from .admask import flat_mask, luma_mask_ping, luma_mask_man
 
         core = vs.core
-        from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
 
         if clip.format.color_family not in {vs.YUV}:
             raise ValueError('adaptive_denoiser: only YUV formats are supported')
@@ -336,7 +339,8 @@ def auto_deblock(
     """
 
     core=vs.core
-    from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
+    from .admask import luma_mask_ping, luma_mask_man, luma_mask
+    from vsdenoise import deblock_qed
     
     try:
         from functools import partial
@@ -378,7 +382,8 @@ def increase_dynamic(
     """
     
     core=vs.core
-    from .admask import flat_mask, luma_mask_ping, luma_mask_man, luma_mask
+    from vstools import get_u, get_v
+    from .admask import luma_mask_man
 
     lumamask = luma_mask_man(clip, t=t, s=s, a=a)
     lumamask = lumamask.std.Invert()
@@ -543,7 +548,7 @@ def msaa2x(
     from vsscale import ArtCNN
     from addfunc import admask
     from addfunc.adutils import scale_binary_value
-    from vsmasktools import Morpho
+
     if ref is None:
         ref = adenoise.digital(clip, precision=False)
     emask = admask.edgemask(ref, sigma=sigma)
@@ -551,7 +556,7 @@ def msaa2x(
         emask = emask.std.Binarize(threshold=scale_binary_value(emask, thr, return_int=True))
     if mask:
         return emask
-    upsc = ArtCNN().C4F32_DN().scale(clip, clip.width*2, clip.height*2)
+    upsc = ArtCNN.C4F32_DN().scale(clip, clip.width*2, clip.height*2)
     aa = core.resize.Spline16(upsc, clip.width, clip.height)
     merged = core.std.MaskedMerge(clip, aa, emask)
     merged = core.std.ShufflePlanes([merged,clip, clip], planes=[0, 1, 2], colorfamily=clip.format.color_family)
