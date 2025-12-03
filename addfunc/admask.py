@@ -102,12 +102,12 @@ def luma_mask_ping(
     core = vs.core
     from vstools import get_y
     import math
+    from .adutils import scale_binary_value
 
     bit_depth = clip.format.bits_per_sample
     max_val = (1 << bit_depth) - 1
 
-    scaled_thr = thr * (max_val / 255.0)
-    thr_scaled = scaled_thr / max_val
+    thr_scaled = scale_binary_value(clip=None, value=thr, bit=8, return_int=False)
 
     high_amp = (math.exp(low_amp - 1) + low_amp * math.exp(low_amp)) / (math.exp(low_amp) - 1)
 
@@ -124,7 +124,7 @@ def luma_mask_ping(
         f"x *"
     )
 
-    cc = core.std.Expr(get_y(clip), expr)
+    cc = core.akarin.Expr([get_y(clip)], expr)
 
     # Inverti il risultato
     cc = core.std.Invert(cc)
@@ -205,7 +205,7 @@ def edgemask(
         sigma: float = 10, 
         blur_radius: int = 1, 
         thr: float = 0.015,
-        presharp : float = 0.3,
+        presharp : float = 0.5,
         postsharp : float = 0.6,
         plane:int = 0)->vs.VideoNode:
     core=vs.core
@@ -249,7 +249,7 @@ def edgemask(
         y_dn = mini_BM3D(y, sigma=sigma, ref=ref, radius=1, profile="HIGH")
 
     if postsharp !=0:
-        y_dn=core.cas.CAS(y_dn, sharpness=0.5, opt=0)
+        y_dn=core.cas.CAS(y_dn, sharpness=postsharp, opt=0)
 
     y_dn=nl_means(y_dn, h=1, tr=1, a=2)
     
