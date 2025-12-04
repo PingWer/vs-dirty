@@ -84,7 +84,7 @@ def luma_mask_man (
 def luma_mask_ping(
         clip: vs.VideoNode,
         low_amp: float = 0.8,
-        thr: float = 0.2,
+        thr: float = 0.21,
 ) -> vs.VideoNode:
     """
     Custom luma mask that uses a different approach to calculate the mask (Made By PingWer).
