@@ -296,31 +296,31 @@ class adenoise:
     
     # Presets
     @staticmethod
-    def scan65mm (clip:vs.VideoNode, thsad: int = 200, tr: int = 2, tr2: int = 1, sigma: float = 2, luma_mask_weaken: float = 0.9, luma_mask_thr: float = 50, chroma_strength: float = 0.5, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+    def scan65mm (clip:vs.VideoNode, thsad: int = 200, tr: int = 2, tr2: int = 1, sigma: float = 2, luma_mask_weaken: float = 0.9, luma_mask_thr: float = 0.2, chroma_strength: float = 0.5, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=200, sigma=2, luma_mask_weaken=0.9, chroma_strength=0.5 """
         return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     @staticmethod
-    def scan35mm (clip:vs.VideoNode, thsad: int = 400, tr: int = 2, tr2: int = 1, sigma: float = 4, luma_mask_weaken: float = 0.8, luma_mask_thr: float = 50, chroma_strength: float = 0.7, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+    def scan35mm (clip:vs.VideoNode, thsad: int = 400, tr: int = 2, tr2: int = 1, sigma: float = 4, luma_mask_weaken: float = 0.8, luma_mask_thr: float = 0.2, chroma_strength: float = 0.7, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7 """
         return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
     @staticmethod
-    def scan16mm (clip:vs.VideoNode, thsad: int = 600, tr: int = 2, tr2: int = 1, sigma: float = 8, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+    def scan16mm (clip:vs.VideoNode, thsad: int = 600, tr: int = 2, tr2: int = 1, sigma: float = 8, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.2, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=600, sigma=8 """
         return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
     @staticmethod
-    def scan8mm (clip:vs.VideoNode, thsad: int = 800, tr: int = 2, tr2: int = 2, sigma: float = 12, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.5, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+    def scan8mm (clip:vs.VideoNode, thsad: int = 800, tr: int = 2, tr2: int = 2, sigma: float = 12, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.2, chroma_strength: float = 1.5, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=800, sigma=12, tr2=2, chroma_strength=1.5 """
         return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
     @staticmethod
-    def digital (clip:vs.VideoNode, thsad: int = 300, tr: int = 2, tr2: int = 1, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1)->vs.VideoNode:
+    def digital (clip:vs.VideoNode, thsad: int = 300, tr: int = 2, tr2: int = 1, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.2, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1)->vs.VideoNode:
         """ changes: thsad=300, sigma=3, texture_penalty=1 """
         return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty, is_digital=True)
     
     @staticmethod
-    def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, tr2: int = 1, sigma: float = 6, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 50, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
+    def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, tr2: int = 1, sigma: float = 6, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.2, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ default profile """
         return adenoise._adaptive_denoiser(clip, thsad, tr, tr2, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
 

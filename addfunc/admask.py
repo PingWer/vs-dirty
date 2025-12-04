@@ -107,7 +107,7 @@ def luma_mask_ping(
     bit_depth = clip.format.bits_per_sample
     max_val = (1 << bit_depth) - 1
 
-    thr_scaled = scale_binary_value(clip=None, value=thr, bit=8, return_int=False)
+    thr_scaled = scale_binary_value(clip, value=thr, bit=bit_depth, return_int=False)
 
     high_amp = (math.exp(low_amp - 1) + low_amp * math.exp(low_amp)) / (math.exp(low_amp) - 1)
 
