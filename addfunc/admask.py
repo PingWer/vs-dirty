@@ -208,9 +208,10 @@ def edgemask(
         presharp : float = 0.5,
         postsharp : float = 0.6,
         plane: int = 0
-        ) ->vs.VideoNode:
+        ) -> vs.VideoNode:
     '''
     This is a custom edge mask (made by PingWer) based on well know operators with particular combination. Really effective as mask for dehalo or sharpening filtering.
+
     :param clip:        Clip to process.
     :param ref:         Reference clip for denoising (really usefull for grainy or noise content, to avoid details loss).
     :param sigma:       Sigma value for the BM3D denoiser. Higher values produce stronger denoising (this value should be higher then the standard, usually 1-2 for regular content, 4-5 for noisy).
