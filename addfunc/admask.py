@@ -140,7 +140,7 @@ def flat_mask(
         edge_thr: float = 0.015,
         debug: bool = False,
         ref: vs.VideoNode = None
-        )-> vs.VideoNode:
+        ) -> vs.VideoNode:
     """
     This custom flat mask (Made By PingWer) is more conservative then JET one, so when a white flat area exit is 99% a real flat area (only if you use reasonable parameters).
     With high values of edge_thr_high you can get a really good edge mask.
@@ -207,8 +207,8 @@ def edgemask(
         thr: float = 0.015,
         presharp : float = 0.5,
         postsharp : float = 0.6,
-        plane:int = 0)->vs.VideoNode:
-    core=vs.core
+        plane: int = 0
+        ) ->vs.VideoNode:
     '''
     This is a custom edge mask (made by PingWer) based on well know operators with particular combination. Really effective as mask for dehalo or sharpening filtering.
     :param clip:        Clip to process.
@@ -221,6 +221,8 @@ def edgemask(
     :param plane:       Plane to process (0 for Y, 1 for U, 2 for V).
     :return:            Edge mask.
     '''
+    
+    core=vs.core
     from vstools import get_y, depth, get_u, get_v
     from .adutils import scale_binary_value
     from .adfunc import mini_BM3D
