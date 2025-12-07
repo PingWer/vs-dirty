@@ -172,7 +172,7 @@ def flat_mask(
 
     y_std = core.std.FrameEval(y, _add_stddev, prop_src=[stats_avg, stats_sq], clip_src=[stats_avg, stats_sq])
 
-    edges = edgemask(y, ref=ref, sigma=(sigma if sigma is not None else 0.0), blur_radius=blur_radius, thr=edge_thr)
+    edges = edgemask(y, ref=ref, sigma=(sigma if sigma is not None else 0.0), blur_radius=blur_radius, thr=edge_thr, chroma=False)
 
     mask_fine = edges.std.Binarize(threshold=scale_binary_value(edges, thr_low, return_int=True))
 
@@ -202,7 +202,7 @@ def edgemask(
         thr: float = 0.015,
         presharp : float = 0.5,
         postsharp : float = 0.6,
-        plane: int = 0
+        chroma: bool = False
         ) -> vs.VideoNode:
     '''
     This is a custom edge mask (made by PingWer) based on well know operators with particular combination. Really effective as mask for dehalo or sharpening filtering.
@@ -214,50 +214,69 @@ def edgemask(
     :param thr:         Threshold for the edge detection. Value should be between 0-1. Lower values produce more edges (don't go lower then default).
     :param presharp:    Amount of sharpening to apply before denoising (never go higher then 0.8).
     :param postsharp:   Amount of sharpening to apply after denoising (never go higher then 0.8).
-    :param plane:       Plane to process (0 for Y, 1 for U, 2 for V).
+    :param chroma:      If True, returns a YUV clip with edge masks for all planes. If False (default), returns Luma edge mask (Gray).
     :return:            Edge mask.
     '''
     
     core=vs.core
-    from vstools import get_y, depth, get_u, get_v
+    from vstools import get_y, depth, get_u, get_v, join, split
     from .adutils import scale_binary_value
     from .adfunc import mini_BM3D
     from vsdenoise import nl_means
+    from vsmasktools import Morpho
 
-    if plane == 0:
-        y = get_y(clip)
-    elif plane == 1:
-        y = get_u(clip)
-    elif plane == 2:
-        y = get_v(clip)
+    if clip.format.color_family == vs.RGB:
+        raise ValueError("edgemask: RGB clips are not supported, yet")
+
+    if chroma and clip.format.color_family == vs.YUV:
+        work_clip = clip
+        work_ref = ref
+        plane=[0,1,2]
     else:
-        return ValueError("Invalid plane number")
-        
-    if y.format.bits_per_sample != 16:
-        y = depth(y, 16)
+        work_clip = get_y(clip)
+        work_ref = get_y(ref) if ref is not None else None
+        plane=[0]
 
-    thr_scaled = scale_binary_value(clip, thr, return_int=True)
+    if work_clip.format.bits_per_sample != 16:
+        work_clip = depth(work_clip, 16)
+        if work_ref is not None and work_ref.format.bits_per_sample != 16:
+             work_ref = depth(work_ref, 16)
 
-    if presharp!=0:
-        y=core.cas.CAS(y, sharpness=presharp, opt=0)
+    thr_scaled = scale_binary_value(work_clip, thr, return_int=True)
 
-    if ref is None:
-        y_dn = mini_BM3D(y, sigma=sigma, radius=1, profile="HIGH")
+    if presharp != 0:
+        work_clip = core.cas.CAS(work_clip, sharpness=presharp, opt=0, planes=plane)
+
+    if work_ref is None:
+        y_dn = mini_BM3D(work_clip, sigma=sigma, radius=1, profile="HIGH")
     else:
-        y_dn = mini_BM3D(y, sigma=sigma, ref=ref, radius=1, profile="HIGH")
+        y_dn = mini_BM3D(work_clip, sigma=sigma, ref=work_ref, radius=1, profile="HIGH")
 
-    if postsharp !=0:
-        y_dn=core.cas.CAS(y_dn, sharpness=postsharp, opt=0)
+    if postsharp != 0:
+        y_dn = core.cas.CAS(y_dn, sharpness=postsharp, opt=0, planes=plane)
 
-    y_dn=nl_means(y_dn, h=1, tr=1, a=2)
+    y_dn = nl_means(y_dn, h=1, tr=1, a=2)
     
     blurred1 = core.std.BoxBlur(y_dn, hradius=blur_radius, vradius=blur_radius)
     blurred2 = core.std.BoxBlur(y_dn, hradius=blur_radius * 2, vradius=blur_radius * 2)
 
-    edges = core.std.Expr([
+    edges = Morpho.inflate(core.std.Expr([
         y_dn.std.Sobel(),
         blurred1.std.Sobel(),
         blurred2.std.Prewitt()
-    ], f"x {thr_scaled} > x 0 ?  y {thr_scaled} > y 0 ? + z {thr_scaled} > z 0 ? max")
+    ], f"x {thr_scaled} > x 0 ?  y {thr_scaled} > y 0 ? + z {thr_scaled} > z 0 ? max"), iterations=2)
 
-    return edges
+    if not chroma or edges.format.color_family == vs.GRAY:
+        return edges
+
+    planes = split(edges)
+    y_mask = planes[0]
+    u_mask_raw = planes[1]
+    v_mask_raw = planes[2]
+
+    y_mask_down = y_mask.resize.Bilinear(width=u_mask_raw.width, height=u_mask_raw.height)
+
+    u_mask = core.std.Expr([u_mask_raw, y_mask_down], "x y max")
+    v_mask = core.std.Expr([v_mask_raw, y_mask_down], "x y max")
+
+    return join([y_mask, u_mask, v_mask], family=vs.YUV)

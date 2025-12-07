@@ -494,6 +494,7 @@ def msaa2x(
     sigma: float = 2,
     mask: bool = False,
     thr: float = None,
+    planes: PlanesT = None,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -510,8 +511,8 @@ def msaa2x(
     from addfunc.adutils import scale_binary_value
 
     if ref is None:
-        ref = adenoise.digital(clip, precision=False)
-    emask = admask.edgemask(ref, sigma=sigma)
+        ref = adenoise.digital(clip, precision=False, planes=planes)
+    emask = admask.edgemask(ref, sigma=sigma, chroma=False)
     if thr is not None:
         emask = emask.std.Binarize(threshold=scale_binary_value(emask, thr, return_int=True))
     if mask:
