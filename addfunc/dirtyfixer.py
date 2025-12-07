@@ -26,28 +26,23 @@ def bore(
 
     Only bore.SinglePlane and bore.MultiPlane are implemented, the other functions will probably never be implemented.
 
-    :param clip:        Input clip (YUV or GRAY, RGB not supported)
+    :param clip:         Input clip (YUV or GRAY, RGB not supported)
     :param ythickness:   List of luma border thicknesses to process. [top, bottom, left, right]. 0 means no processing.
-    :param uthickness:   List of chroma U border thicknesses to process. [top, bottom, left, right]. 0 means no processing. if None, uses ythickness or vthickness.
-    :param vthickness:   List of chroma V border thicknesses to process. [top, bottom, left, right]. 0 means no processing. if None, uses ythickness or uthickness.
-    :param planes:      Plane(s) to process.
-    :param singlePlane: If True uses bore.SinglePlane, otherwise bore.MultiPlane
-    :param thickness:    Alternate name for ythickness.
-    :return:            Processed clip with corrected borders, same format as input      
+    :param uthickness:   List of chroma U border thicknesses to process. [top, bottom, left, right]. 0 means no processing. if None, uses ythickness or vthickness if is not None.
+    :param vthickness:   List of chroma V border thicknesses to process. [top, bottom, left, right]. 0 means no processing. if None, uses ythickness or uthickness if is not None.
+    :param planes:       Plane(s) to process.
+    :param singlePlane:  If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane cannot be used with GRAY clips.
+    :return:             Processed clip with corrected borders, same format as input      
     """
-
-    thickness = kwargs.get("thickness")
-    if thickness is not None:
-        ythickness = thickness
 
     if ythickness is None:
         ythickness = [1,1,1,1]
 
     if clip.format.color_family == vs.RGB:
-        raise ValueError("easy_bore: RGB clips are not supported.")     
+        raise ValueError("bore: RGB clips are not supported.")     
     
     if planes is None:
-        raise ValueError("easy_bore: planes cannot be None.")
+        raise ValueError("bore: planes cannot be None.")
 
     if isinstance(planes, int):
         planes = [planes]

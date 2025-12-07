@@ -112,21 +112,16 @@ def luma_mask_ping(
     high_amp = (math.exp(low_amp - 1) + low_amp * math.exp(low_amp)) / (math.exp(low_amp) - 1)
 
     expr = (
-        f"x {max_val} / "  # x_n
-        f"dup {thr_scaled} < "  # condizione
-        # ramo TRUE
+        f"x {max_val} / "
+        f"dup {thr_scaled} < "
         f"{thr_scaled} 1 + - exp {low_amp} + "
-        # ramo FALSE
         f"{high_amp} {high_amp} dup {thr_scaled} 1 - - log {high_amp} * exp {low_amp} + / - "
-        # ternario
         f"? "
-        # moltiplica per x (valore originale)
         f"x *"
     )
 
     cc = core.akarin.Expr([get_y(clip)], expr)
 
-    # Inverti il risultato
     cc = core.std.Invert(cc)
 
     return cc

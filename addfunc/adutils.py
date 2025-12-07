@@ -19,7 +19,7 @@ def scale_binary_value(
     :param clip:         Clip to process.
     :param value:        Value to scale (0.0 - 1.0).
     :param return_int:   Whether to return an integer value. Default is True (will be ignore if the input clip is Float).
-    :param bit:          Bit depth of the clip. If None, the bit depth of the clip will be used. Default is None. c
+    :param bit:          Bit depth of the clip. If None, the bit depth of the clip will be used. Default is None.
     :return:             Scaled value.
     """
     if bit is None and clip is not None:
