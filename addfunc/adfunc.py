@@ -195,11 +195,11 @@ class adenoise:
                                 Accepted values: "nlm", "cbm3d"
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param chroma_masking:      If True, enables specific chroma masking for U/V planes.
-    :param show_mask:           0 = Show the first luma mask, 1 = Show the textured luma mask, 2 = Show the complete luma mask, 3 = Show the Chroma U Plane mask (if chroma_masking = True), 4 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
     :param flat_penalty:        Multiplier for the flat mask in precision mode. Higher values increase denoising strength in flat areas.
     :param texture_penalty:     Multiplier for the texture mask in precision mode. Higher values decrease denoising strength in textured areas to preserve detail.
 
-    :return:                    16bit denoised clip or luma_mask if show_mask is 0, 1, 2, 3 or 4.
+    :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2, 3, 4 or 5.
     """
 
     @classmethod
@@ -237,7 +237,7 @@ class adenoise:
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
 
-        if show_mask == 0:
+        if show_mask == 1:
             return darken_luma_mask
 
         #Degrain
@@ -252,7 +252,7 @@ class adenoise:
 
         if precision:
             flatmask = flat_mask(degrain, sigma=sigma*1.5)
-            if show_mask == 1:
+            if show_mask == 2:
                 return flatmask
             darken_luma_mask = core.std.Expr(
             [darken_luma_mask, flatmask],
@@ -260,7 +260,7 @@ class adenoise:
             
             darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
 
-        if show_mask == 2:
+        if show_mask == 3:
             return darken_luma_mask
         
         denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr, profile="HIGH", planes=0)
@@ -290,9 +290,9 @@ class adenoise:
             u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
             chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
         
-            if show_mask == 3:
+            if show_mask == 4:
                 return v_mask
-            elif show_mask == 4:
+            elif show_mask == 5:
                 return u_mask
         
         final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
