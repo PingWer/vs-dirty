@@ -199,7 +199,7 @@ class adenoise:
     :param flat_penalty:        Multiplier for the flat mask in precision mode. Higher values increase denoising strength in flat areas.
     :param texture_penalty:     Multiplier for the texture mask in precision mode. Higher values decrease denoising strength in textured areas to preserve detail.
 
-    :return:                    16bit denoised clip or luma_mask if show_mask is 1, 2, 3, 4 or 5.
+    :return:                    16bit denoised clip. If show_mask is 1, 2, 3, 4 or 5, returns a tuple (denoised_clip, mask).
     """
 
     @classmethod
@@ -298,34 +298,144 @@ class adenoise:
         final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
         return final
     
+    @classmethod
+    def _adaptive_denoiser_tuple(
+        cls,
+        clip: vs.VideoNode,
+        thsad: int = 500,
+        tr: int = 2,
+        sigma: float = 6,
+        luma_mask_weaken: float = 0.75,
+        luma_mask_thr: float = 0.196,
+        chroma_strength: float = 1.0,
+        chroma_denoise: str = "nlm", 
+        precision: bool = True,
+        chroma_masking: bool = False,
+        show_mask: int = 0,
+        flat_penalty: float = 0.5,
+        texture_penalty: float = 1.1,
+        **kwargs
+    ) -> tuple[vs.VideoNode, vs.VideoNode]:
+        
+        from vstools import get_y, get_u, get_v, depth
+        from vsmasktools import Morpho
+        from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
+        from .admask import flat_mask, luma_mask_ping, luma_mask_man
+
+        core = vs.core
+        
+        selected_mask = None
+
+        if clip.format.color_family not in {vs.YUV}:
+            raise ValueError('adaptive_denoiser: only YUV formats are supported')
+
+        if clip.format.bits_per_sample != 16:
+            clip = depth(clip, 16, dither_type="none")
+
+        lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
+        darken_luma_mask = core.std.Expr([lumamask], f"x {luma_mask_weaken} *")
+
+        if show_mask == 1:
+            selected_mask = darken_luma_mask
+
+        #Degrain
+        if "is_digital" not in kwargs:
+            mvtools = MVTools(clip)
+            vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
+            mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*1.5, radius=tr, profile="LC", planes=0)
+            mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+            degrain = mc_degrain(clip, prefilter=Prefilter.DFTTEST, blksize=8, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr, limit=1)
+        else:
+            degrain = clip
+
+        if precision:
+            flatmask = flat_mask(degrain, sigma=sigma*1.5)
+            if show_mask == 2:
+                selected_mask = flatmask
+            darken_luma_mask = core.std.Expr(
+            [darken_luma_mask, flatmask],
+            f"y 65535 = x {flat_penalty} * x {texture_penalty} * ?")
+            
+            darken_luma_mask = Morpho.deflate(Morpho.inflate(darken_luma_mask)) # Inflate+Deflate for smoothing
+
+        if show_mask == 3:
+            selected_mask = darken_luma_mask
+        
+        denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr, profile="HIGH", planes=0)
+        luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) #denoise applied to darker areas
+
+        #Chroma denoise
+        
+        if chroma_strength <= 0:
+            chroma_denoised = clip
+        else:
+            if chroma_denoise == "nlm":
+                chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=degrain, planes=[1,2])
+            if chroma_denoise == "cbm3d":
+                chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=degrain, planes=[1,2])
+        
+        #TODO 
+        #chroma mask fine tuning
+        v_mask = None #Per evitare UnboundLocalError
+        u_mask = None
+
+        if chroma_masking or chroma_strength<=0:
+            v=get_v(clip)
+            v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
+            v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
+            u=get_u(clip)
+            u_mask= luma_mask_man(u, t=1.5, s=2, a=0)
+            u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
+            chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
+        
+            if show_mask == 4:
+                selected_mask = v_mask
+            elif show_mask == 5:
+                selected_mask = u_mask
+        
+        final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
+        return final, selected_mask
+
     # Presets
     @staticmethod
     def scan65mm (clip:vs.VideoNode, thsad: int = 200, tr: int = 2, sigma: float = 2, luma_mask_weaken: float = 0.9, luma_mask_thr: float = 0.196, chroma_strength: float = 0.5, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=200, sigma=2, luma_mask_weaken=0.9, chroma_strength=0.5 """
+        if show_mask in [1, 2, 3, 4, 5]:
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     @staticmethod
     def scan35mm (clip:vs.VideoNode, thsad: int = 400, tr: int = 2, sigma: float = 4, luma_mask_weaken: float = 0.8, luma_mask_thr: float = 0.196, chroma_strength: float = 0.7, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7 """
+        if show_mask in [1, 2, 3, 4, 5]:
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
     @staticmethod
     def scan16mm (clip:vs.VideoNode, thsad: int = 600, tr: int = 2, sigma: float = 8, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=600, sigma=8 """
+        if show_mask in [1, 2, 3, 4, 5]:
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
     @staticmethod
     def scan8mm (clip:vs.VideoNode, thsad: int = 800, tr: int = 2, sigma: float = 12, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_strength: float = 1.5, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ changes: thsad=800, sigma=12, chroma_strength=1.5 """
+        if show_mask in [1, 2, 3, 4, 5]:
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
     
     @staticmethod
     def digital (clip:vs.VideoNode, thsad: int = 300, tr: int = 2, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1)->vs.VideoNode:
         """ changes: thsad=300, sigma=3, texture_penalty=1 """
+        if show_mask in [1, 2, 3, 4, 5]:
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty, is_digital=True)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty, is_digital=True)
     
     @staticmethod
     def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, sigma: float = 6, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, flat_penalty: float = 0.5, texture_penalty: float = 1.1)->vs.VideoNode:
         """ default profile """
+        if show_mask in [1, 2, 3, 4, 5]:
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, flat_penalty, texture_penalty)
 
 #TODO
