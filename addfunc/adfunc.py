@@ -281,7 +281,7 @@ class adenoise:
         v_mask = None #Per evitare UnboundLocalError
         u_mask = None
 
-        if chroma_masking or chroma_strength<=0:
+        if chroma_masking and chroma_strength>0:
             v=get_v(clip)
             v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
             v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
@@ -513,20 +513,23 @@ def msaa2x(
     from addfunc import admask
     from addfunc.adutils import scale_binary_value
 
+    if isinstance(planes, int):
+        planes = [planes]
+
     if ref is None:
-        ref = adenoise.digital(clip, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if planes==0 else 1))
-    edgemask = admask.edgemask(ref, sigma=sigma, chroma=False)
+        ref = adenoise.digital(clip, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
+    edgemask = admask.edgemask(ref, sigma=sigma, chroma=True)
     if thr is not None:
         edgemask = edgemask.std.Binarize(threshold=scale_binary_value(edgemask, thr, return_int=True))
     if mask:
         return edgemask
     upscaled = ArtCNN.C4F32_DN().scale(clip, clip.width*2, clip.height*2)
-    downscaled = core.resize.Spline16(upscaled, clip.width, clip.height)
+    downscaled = core.resize.Spline36(upscaled, clip.width, clip.height)
     aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
 
     if 1 in planes or 2 in planes:
         aa = ArtCNN.R8F64_Chroma().scale(aa)
-        chroma_downscaled = core.resize.Spline16(aa, clip.width/2, clip.height/2)
+        chroma_downscaled = core.resize.Spline36(aa, clip.width/2, clip.height/2, src_left=-0.5)
         u = get_u(chroma_downscaled)
         v = get_v(chroma_downscaled)
         if 0 not in planes:
