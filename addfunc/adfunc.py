@@ -455,6 +455,7 @@ def auto_deblock(
     core=vs.core
     from .admask import luma_mask_ping, luma_mask_man, luma_mask
     from vsdenoise import deblock_qed
+    from vstools import depth
     
     try:
         from functools import partial
@@ -494,7 +495,7 @@ def msaa2x(
     sigma: float = 2,
     mask: bool = False,
     thr: float = None,
-    planes: PlanesT = None,
+    planes: PlanesT = 0,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -505,6 +506,7 @@ def msaa2x(
     :param sigma:           Sigma value used in the creation of the edgemask.
     :param mask:            If True will return the mask used.
     :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. (Never go below 0.1, increase the value for noisy or grainy content). If None, no Binarize will be applied.
+    :param planes:          Which planes to process. Defaults to Y.
     """
     from vsscale import ArtCNN
     from addfunc import admask
@@ -512,14 +514,19 @@ def msaa2x(
 
     if ref is None:
         ref = adenoise.digital(clip, precision=False, planes=planes)
-    emask = admask.edgemask(ref, sigma=sigma, chroma=False)
+    edgemask = admask.edgemask(ref, sigma=sigma, chroma=False)
     if thr is not None:
-        emask = emask.std.Binarize(threshold=scale_binary_value(emask, thr, return_int=True))
+        edgemask = edgemask.std.Binarize(threshold=scale_binary_value(edgemask, thr, return_int=True))
     if mask:
-        return emask
-    upsc = ArtCNN.C4F32_DN().scale(clip, clip.width*2, clip.height*2)
-    aa = core.resize.Spline16(upsc, clip.width, clip.height)
-    merged = core.std.MaskedMerge(clip, aa, emask)
-    merged = core.std.ShufflePlanes([merged,clip, clip], planes=[0, 1, 2], colorfamily=clip.format.color_family)
-    return merged
+        return edgemask
+    upscaled = ArtCNN.C4F32_DN().scale(clip, clip.width*2, clip.height*2)
+    downscaled = core.resize.Spline16(upscaled, clip.width, clip.height)
+    aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
+
+    if 1 in planes or 2 in planes:
+        aa = ArtCNN.R8F64_Chroma().scale(aa)
+        planes = planes.remove(0) if isinstance(planes, list) else planes
+        aa = core.std.MaskedMerge(clip, aa, edgemask, planes=planes)
+
+    return aa
 
