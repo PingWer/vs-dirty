@@ -529,6 +529,8 @@ def msaa2x(
         chroma_downscaled = core.resize.Spline16(aa, clip.width/2, clip.height/2)
         u = get_u(chroma_downscaled)
         v = get_v(chroma_downscaled)
+        if planes==0:
+            downscaled = clip
         all_downscaled = core.std.ShufflePlanes([downscaled, u, v], planes=[0,0,0], colorfamily=clip.format.color_family)
         aa = core.std.MaskedMerge(clip, all_downscaled, edgemask, planes=planes)
 
