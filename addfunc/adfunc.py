@@ -509,11 +509,12 @@ def msaa2x(
     :param planes:          Which planes to process. Defaults to Y.
     """
     from vsscale import ArtCNN
+    from vstools import get_u, get_v
     from addfunc import admask
     from addfunc.adutils import scale_binary_value
 
     if ref is None:
-        ref = adenoise.digital(clip, precision=False, planes=planes)
+        ref = adenoise.digital(clip, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if planes==0 else 1))
     edgemask = admask.edgemask(ref, sigma=sigma, chroma=False)
     if thr is not None:
         edgemask = edgemask.std.Binarize(threshold=scale_binary_value(edgemask, thr, return_int=True))
@@ -525,8 +526,11 @@ def msaa2x(
 
     if 1 in planes or 2 in planes:
         aa = ArtCNN.R8F64_Chroma().scale(aa)
-        planes = planes.remove(0) if isinstance(planes, list) else planes
-        aa = core.std.MaskedMerge(clip, aa, edgemask, planes=planes)
+        chroma_downscaled = core.resize.Spline16(aa, clip.width/2, clip.height/2)
+        u = get_u(chroma_downscaled)
+        v = get_v(chroma_downscaled)
+        all_downscaled = core.std.ShufflePlanes([downscaled, u, v], planes=[0,0,0], colorfamily=clip.format.color_family)
+        aa = core.std.MaskedMerge(clip, all_downscaled, edgemask, planes=planes)
 
     return aa
 
