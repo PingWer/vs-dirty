@@ -445,6 +445,7 @@ def auto_deblock(
     sigma: int = 15,
     tbsize: int = 1,
     luma_mask_strength: float = 0.9,
+    pre: bool = False,
     mask_type: int = 0,
     planes: PlanesT = None
 ) -> vs.VideoNode:
@@ -467,10 +468,11 @@ def auto_deblock(
 
     if clip.format.bits_per_sample != 16:
         clip = depth(clip, 16)
+    
+    if pre:
+        clip = deblock_qed(clip, planes=planes)
 
-    predeblock = deblock_qed(clip.rgvs.RemoveGrain(2).rgvs.RemoveGrain(2), planes=planes)
-
-    deblock = core.dfttest.DFTTest(predeblock, sigma=sigma, tbsize=tbsize, planes=planes)
+    deblock = core.dfttest.DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
     
     if (mask_type == 0):
         lumamask = luma_mask(clip)
@@ -524,12 +526,14 @@ def msaa2x(
     if mask:
         return edgemask
     upscaled = ArtCNN.C4F32_DN().scale(clip, clip.width*2, clip.height*2)
-    downscaled = core.resize.Spline36(upscaled, clip.width, clip.height)
+    downscaled = core.resize.Bicubic(upscaled, clip.width, clip.height)
     aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
 
     if 1 in planes or 2 in planes:
+        lefted = aa.resize.Spline36(src_left=-0.5)
+        aa = core.std.ShufflePlanes([aa, lefted, lefted], planes=[0,1,2], colorfamily=clip.format.color_family)
         aa = ArtCNN.R8F64_Chroma().scale(aa)
-        chroma_downscaled = core.resize.Spline36(aa, clip.width/2, clip.height/2, src_left=-0.5)
+        chroma_downscaled = core.resize.Bicubic(aa, clip.width/2, clip.height/2)
         u = get_u(chroma_downscaled)
         v = get_v(chroma_downscaled)
         if 0 not in planes:
