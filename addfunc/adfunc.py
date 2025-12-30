@@ -196,7 +196,7 @@ class adenoise:
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param chroma_masking:      If True, enables specific chroma masking for U/V planes.
     :param show_mask:           1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
-    :param flat_penalty:        Multiplier for the flat mask in precision mode. Higher values increase denoising strength in flat areas.
+    :param flat_penalty:        Multiplier for the flat mask in precision mode. Higher values decrease denoising strength in flat areas.
     :param texture_penalty:     Multiplier for the texture mask in precision mode. Higher values decrease denoising strength in textured areas to preserve detail.
 
     :return:                    16bit denoised clip. If show_mask is 1, 2, 3, 4 or 5, returns a tuple (denoised_clip, mask).
