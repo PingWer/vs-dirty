@@ -280,3 +280,217 @@ def edgemask(
     v_mask = core.std.Expr([v_mask_raw, y_mask_down], "x y max")
 
     return join([y_mask, u_mask, v_mask], family=vs.YUV)
+
+
+def unbloat_retinex(
+    clip: vs.VideoNode,
+    sigma: list[float] = [25, 80, 250],
+    lower_thr: float = 0.001,
+    upper_thr: float = 0.001,
+    fast: bool = True
+) -> vs.VideoNode:
+    """
+    Multi-Scale Retinex (MSR) optimized for edge enhancement and dynamic range compression.
+    
+    Uses Gaussian blur (via vsrgtools.gauss_blur) with optional downscaling optimization
+    for large sigma values. The output is a normalized [0, 1] Float32 grayscale clip
+    suitable for edge detection or as a preprocessing step for masking.
+    
+    :param clip:        Input clip. Must be Grayscale (GRAY format).
+    :param sigma:       List of sigma values for multi-scale blur. Default: [25, 80, 250].
+                        Larger values capture coarser illumination variations.
+    :param lower_thr:   Quantile threshold for black level (0-1). Default: 0.001 (0.1%).
+                        Used to ignore dark outliers during final normalization.
+    :param upper_thr:   Quantile threshold for white level (0-1). Default: 0.001 (0.1%).
+                        Used to ignore bright outliers during final normalization.
+    :param fast:        Enable downscaling optimization for large sigmas. Default: True.
+                        Significantly faster with minimal quality loss.
+    :return:            Processed Float32 Grayscale clip with enhanced local contrast.
+    
+    :raises ValueError: If input clip is not Grayscale.
+    """
+    from vstools import depth
+    
+    if clip.format.color_family != vs.GRAY:
+        raise ValueError("unbloat_retinex: Input must be a Grayscale clip.")
+    
+    if clip.format.sample_type != vs.FLOAT:
+        luma = depth(clip, 32)
+    else:
+        luma = clip
+        
+    stats = luma.std.PlaneStats()
+    luma_norm = core.akarin.Expr([luma, stats], "x y.PlaneStatsMin - y.PlaneStatsMax y.PlaneStatsMin - 0.000001 max /")
+    
+    from vsrgtools import gauss_blur
+
+    sigmas_sorted = sorted(sigma)
+    sigmas_to_blur = sigmas_sorted[:-1] if fast else sigmas_sorted
+        
+    blurs = []
+    w, h = luma_norm.width, luma_norm.height
+    
+    for s in sigmas_to_blur:
+        if fast and s > 6:
+            ds_ratio = max(1, s / 3)
+            ds_w, ds_h = max(1, int(w / ds_ratio)), max(1, int(h / ds_ratio))
+            
+            if ds_ratio > 2:
+                down = luma_norm.resize.Bicubic(ds_w, ds_h)
+                
+                s_down = s / ds_ratio
+                blurred_down = gauss_blur(down, sigma=s_down)
+                
+                blurred = blurred_down.resize.Bicubic(w, h)
+            else:
+                 blurred = gauss_blur(luma_norm, sigma=s)
+        else:
+             blurred = gauss_blur(luma_norm, sigma=s)
+        blurs.append(blurred)
+        
+    inputs = [luma_norm] + blurs
+    
+    def get_char(i):
+        if i == 0: return 'x'
+        if i == 1: return 'y'
+        if i == 2: return 'z'
+        if i == 3: return 'a'
+        return chr(ord('a') + (i - 3))
+
+    terms = []
+    for i in range(1, len(inputs)):
+        c = get_char(i)
+        terms.append(f"{c} 0 <= 1 x {c} / 1 + ?")
+        
+    if fast:
+        terms.append("x 1 +")
+
+    expr_code = " ".join(terms)
+    if len(terms) > 1:
+         expr_code += " " + " ".join(["+"] * (len(terms) - 1))
+         
+    slen = len(sigma)
+    expr_code += f" log {slen} /"
+    
+    msr = core.akarin.Expr(inputs, expr_code)
+    
+    if hasattr(core, 'vszip') and (lower_thr > 0 or upper_thr > 0):
+        msr_stats = core.vszip.PlaneMinMax(msr, lower_thr, upper_thr)
+        min_key, max_key = 'psmMin', 'psmMax'
+    else:
+        msr_stats = msr.std.PlaneStats()
+        min_key, max_key = 'PlaneStatsMin', 'PlaneStatsMax'
+
+    balanced = core.akarin.Expr([msr, msr_stats], f"x y.{min_key} - y.{max_key} y.{min_key} - 0.000001 max /")
+    
+    return balanced
+
+
+def advanced_edgemask(
+    clip: vs.VideoNode,
+    ref: Optional[vs.VideoNode] = None,
+    sigma1: float = 4,
+    retinex_sigma: list[float] = [50, 200, 350],
+    sigma2: float = 1,
+    sharpness: float = 0.8,
+    kirsch_weight: float = 0.5,
+    kirsch_thr: float = 0.35,
+    edge_thr: float = 0.02
+) -> vs.VideoNode:
+    """
+    Advanced edge mask combining Retinex preprocessing with multiple edge detectors.
+    
+    This mask uses BM3D denoising + Multi-Scale Retinex to enhance edges before detection,
+    then combines Sobel, Prewitt, TCanny and Kirsch edge detectors for robust edge detection.
+    
+    :param clip:                Clip to process (YUV or Gray).
+    :param ref:                 Optional reference clip for denoising.
+    :param sigma1:              BM3D sigma for initial denoising. Default: 4.
+    :param retinex_sigma:       Sigma values for Multi-Scale Retinex. Default: [50, 200, 350].
+    :param sigma2:              Nlmeans strength for post-Retinex denoising. Default: 1.
+    :param sharpness:           CAS sharpening amount (0-1). Default: 0.8.
+    :param kirsch_weight:       Weight for Kirsch edges in final blend (0-1). Default: 0.7.
+    :param kirsch_thr:          Kirsch threshold. Default: 0.25.
+    :param edge_thr:            Threshold for edge combination logic (0-1). Default: 0.015.
+    :return:                    Edge mask (Gray clip).
+    """
+    from vstools import get_y, depth
+    from vsdenoise import nl_means
+    from vsmasktools import Morpho, Kirsch
+    from .adfunc import mini_BM3D
+    from .adutils import scale_binary_value
+    
+    core = vs.core
+    
+    if clip.format.color_family == vs.RGB:
+        raise ValueError("advanced_edgemask: RGB clips are not supported.")
+    
+    if clip.format.color_family == vs.GRAY:
+        luma = clip
+    else:
+        luma = get_y(clip)
+    
+    if luma.format.bits_per_sample != 16:
+        luma = depth(luma, 16) # 32 bit potrebbe avere senso?
+
+    if ref is not None:
+        if ref.format.color_family == vs.RGB:
+            raise ValueError("advanced_edgemask: RGB reference clips are not supported.")
+        
+        if ref.format.color_family == vs.GRAY:
+            ref_y = ref
+        else:
+            ref_y = get_y(ref)
+            
+        if ref_y.format.bits_per_sample != 16:
+            ref_y = depth(ref_y, 16)
+        clipd = mini_BM3D(luma, sigma=sigma1, ref=ref_y, radius=1, profile="HIGH", planes=0)
+    else:
+        clipd = mini_BM3D(luma, sigma=sigma1, radius=1, profile="HIGH", planes=0)
+    
+    msrcpa = depth(unbloat_retinex(
+        depth(clipd, 32), 
+        sigma=retinex_sigma, 
+        lower_thr=0.001, 
+        upper_thr=0.005, 
+        fast=True
+    ), 16, dither_type="none")
+    
+    msrcp = nl_means(msrcpa, h=sigma2, a=2)
+    
+    if sharpness > 0:
+        msrcp = core.cas.CAS(msrcp, sharpness=sharpness, opt=0, planes=0)
+        clipd = core.cas.CAS(clipd, sharpness=sharpness, opt=0, planes=0)
+    
+    preSobel = core.akarin.Expr([
+        get_y(msrcp).std.Sobel(),
+        get_y(clipd).std.Sobel(),
+    ], "x y max")
+    
+    prePrewitt = core.akarin.Expr([
+        get_y(msrcp).std.Prewitt(),
+        get_y(clipd).std.Prewitt(),
+    ], "x y max")
+    
+    edges = Morpho.inflate(core.akarin.Expr([preSobel, prePrewitt], "x y +"), iterations=1)
+    
+    tcanny = core.akarin.Expr([
+        core.tcanny.TCanny(get_y(msrcp), mode=1, sigma=0),
+        core.tcanny.TCanny(get_y(clipd), mode=1, sigma=0)
+    ], "x y max")
+    
+    kirco = core.akarin.Expr([
+        Kirsch.edgemask(get_y(msrcp), clamp=False, lthr=kirsch_thr),
+        Kirsch.edgemask(get_y(clipd), clamp=False, lthr=kirsch_thr)
+    ], "x y max")
+    
+    
+    edge_thr_scaled = scale_binary_value(edges, edge_thr, return_int=True)
+    tcanny_min = tcanny.std.Minimum(coordinates=[1, 0, 1, 0, 0, 1, 0, 1])
+    mask = core.akarin.Expr(
+        [edges, tcanny_min, kirco], 
+        f"x y + {edge_thr_scaled} < x y + z {kirsch_weight} * + x y + ?"
+    )
+    
+    return mask
+
