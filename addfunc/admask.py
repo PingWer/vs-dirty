@@ -310,6 +310,7 @@ def unbloat_retinex(
     :raises ValueError: If input clip is not Grayscale.
     """
     from vstools import depth
+    from vsrgtools import gauss_blur
     
     if clip.format.color_family != vs.GRAY:
         raise ValueError("unbloat_retinex: Input must be a Grayscale clip.")
@@ -321,8 +322,6 @@ def unbloat_retinex(
         
     stats = luma.std.PlaneStats()
     luma_norm = core.akarin.Expr([luma, stats], "x y.PlaneStatsMin - y.PlaneStatsMax y.PlaneStatsMin - 0.000001 max /")
-    
-    from vsrgtools import gauss_blur
 
     sigmas_sorted = sorted(sigma)
     sigmas_to_blur = sigmas_sorted[:-1] if fast else sigmas_sorted
@@ -472,7 +471,7 @@ def advanced_edgemask(
         get_y(clipd).std.Prewitt(),
     ], "x y max")
     
-    edges = Morpho.inflate(core.akarin.Expr([preSobel, prePrewitt], "x y +"), iterations=1)
+    edges = core.akarin.Expr([preSobel, prePrewitt], "x y +")
     
     tcanny = core.akarin.Expr([
         core.tcanny.TCanny(get_y(msrcp), mode=1, sigma=0),

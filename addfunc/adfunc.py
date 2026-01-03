@@ -485,17 +485,12 @@ def auto_deblock(
 
     return final
 
-# TODO
-# Vedere come gestire meglio la edgemask (probabilmente sarà incluso dentro edgemask)
-# Aggiungere il passaggio del prototipo della funzione di adenoise
-# kwargs dovrebbero essere solo per la mask
-# C'è da decidere se vogliamo il Binarize o no, perchè potrebbe anche non essere strettamente necessario, al massimo si può avere un whiten dei bordi di una determinata quantità
-# Però il binarize è utile se l'aliasing è generale su tutto l'anime (come su Orb che fixa anche gli sfondi) 
+
 def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
-    sigma: float = 2,
     mask: bool = False,
+    sigma: float = 2,
     thr: float = None,
     planes: PlanesT = 0,
     **kwargs
@@ -504,27 +499,51 @@ def msaa2x(
     Upscales only the edges with AI (ArtCNN DN) and downscales them.
 
     :param clip:            Clip to apply msaa2x.
-    :param ref:             Reference clip used to crate the edgemask (should be the original not filtered clip). If None, clip will be used.
-    :param sigma:           Sigma value used in the creation of the edgemask.
+    :param ref:             Reference clip used to create the edgemask (should be the original not filtered clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
     :param mask:            If True will return the mask used.
-    :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. (Never go below 0.1, increase the value for noisy or grainy content). If None, no Binarize will be applied.
+    :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
+    :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
     :param planes:          Which planes to process. Defaults to Y.
+    :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN
-    from vstools import get_u, get_v
-    from addfunc import admask
+    from vstools import get_u, get_v, get_y
+    from addfunc.admask import advanced_edgemask
     from addfunc.adutils import scale_binary_value
 
     if isinstance(planes, int):
         planes = [planes]
+    if clip.format.color_family == vs.GRAY:
+        planes = [0]
+    
+    if clip.format.color_family == vs.RGB:
+        raise ValueError("msaa2x: clip must be YUV or Gray color family!")
 
     if ref is None:
-        ref = adenoise.digital(clip, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
-    edgemask = admask.edgemask(ref, sigma=sigma, chroma=True)
-    if thr is not None:
+        ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
+    
+    masks = [None, None, None]
+    for p in planes:
+        if p == 0:
+            masks[0] = advanced_edgemask(get_y(ref), **kwargs)
+        elif p == 1:
+            masks[1] = advanced_edgemask(get_u(ref), **kwargs)
+        elif p == 2:
+            masks[2] = advanced_edgemask(get_v(ref), **kwargs)
+    
+    if len(planes) == 1:
+        edgemask = masks[planes[0]]
+    else:
+        if masks[0] is None: masks[0] = get_y(ref).std.BlankClip()
+        if masks[1] is None: masks[1] = get_u(ref).std.BlankClip()
+        if masks[2] is None: masks[2] = get_v(ref).std.BlankClip()
+        edgemask = core.std.ShufflePlanes(masks, planes=[0, 0, 0], colorfamily=ref.format.color_family)
+    
+    if thr is not None and thr != 0:
         edgemask = edgemask.std.Binarize(threshold=scale_binary_value(edgemask, thr, return_int=True))
     if mask:
         return edgemask
+
     upscaled = ArtCNN.C4F32_DN().scale(clip, clip.width*2, clip.height*2)
     downscaled = core.resize.Bicubic(upscaled, clip.width, clip.height)
     aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
