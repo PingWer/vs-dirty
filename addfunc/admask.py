@@ -10,6 +10,32 @@ if not (hasattr(vs.core, 'cas') or hasattr(vs.core, 'fmtc') or hasattr(vs.core, 
 def _get_stdev(avg: float, sq_avg: float) -> float:
     return abs(sq_avg - avg ** 2) ** 0.5
 
+#fatta dalla IA e anche male, ma fa il suo la cambierò in futuro forse
+def _soft_threshold(clip: vs.VideoNode, thr: float, steepness: float = 20.0) -> vs.VideoNode:
+    """
+    Applies a soft threshold to the clip.
+    Values below thr accept a penalty that decays exponentially based on the distance from thr.
+    formula: x < thr ? x * exp((x - thr) * steepness) : x
+    """
+    from .adutils import scale_binary_value
+    
+    core = vs.core
+    
+    thr_scaled = scale_binary_value(clip, thr, return_int=False)
+    
+    if clip.format.sample_type == vs.INTEGER:
+        max_val = (1 << clip.format.bits_per_sample) - 1
+        diff_expr = f"x {thr_scaled} - {max_val} /"
+    else:
+        diff_expr = f"x {thr_scaled} -"
+
+    return core.akarin.Expr(
+        [clip],
+        f"x {thr_scaled} >= x "
+        f"{diff_expr} {steepness} * exp x * "
+        f"?"
+    )
+
 def auto_thr_high(stddev):
     if stddev >0.900:
         stdev_min, stdev_max = 0.800, 1.000
@@ -286,9 +312,9 @@ def unbloat_retinex(
     clip: vs.VideoNode,
     sigma: list[float] = [25, 80, 250],
     lower_thr: float = 0.001,
-    upper_thr: float = 0.001,
+    upper_thr: float = 0.005,
     fast: bool = True
-) -> vs.VideoNode:
+    ) -> vs.VideoNode:
     """
     Multi-Scale Retinex (MSR) optimized for edge enhancement and dynamic range compression.
     
@@ -388,13 +414,15 @@ def unbloat_retinex(
 def advanced_edgemask(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
-    sigma1: float = 4,
+    sigma1: float = 3,
     retinex_sigma: list[float] = [50, 200, 350],
     sigma2: float = 1,
     sharpness: float = 0.8,
     kirsch_weight: float = 0.5,
     kirsch_thr: float = 0.35,
-    edge_thr: float = 0.02
+    edge_thr: float = 0.02,
+    func: Optional[bool] = False,
+    **kwargs
 ) -> vs.VideoNode:
     """
     Advanced edge mask combining Retinex preprocessing with multiple edge detectors.
@@ -404,13 +432,14 @@ def advanced_edgemask(
     
     :param clip:                Clip to process (YUV or Gray).
     :param ref:                 Optional reference clip for denoising.
-    :param sigma1:              BM3D sigma for initial denoising. Default: 4.
+    :param sigma1:              BM3D sigma for initial denoising. Default: 3.
     :param retinex_sigma:       Sigma values for Multi-Scale Retinex. Default: [50, 200, 350].
     :param sigma2:              Nlmeans strength for post-Retinex denoising. Default: 1.
     :param sharpness:           CAS sharpening amount (0-1). Default: 0.8.
     :param kirsch_weight:       Weight for Kirsch edges in final blend (0-1). Default: 0.7.
     :param kirsch_thr:          Kirsch threshold. Default: 0.25.
-    :param edge_thr:            Threshold for edge combination logic (0-1). Default: 0.015.
+    :param edge_thr:            Threshold for edge combination logic (0-1). Default: 0.02.
+    :param kwargs:              Additional arguments for Retinex.
     :return:                    Edge mask (Gray clip).
     """
     from vstools import get_y, depth
@@ -449,10 +478,9 @@ def advanced_edgemask(
     
     msrcpa = depth(unbloat_retinex(
         depth(clipd, 32), 
-        sigma=retinex_sigma, 
-        lower_thr=0.001, 
-        upper_thr=0.005, 
-        fast=True
+        sigma=retinex_sigma,
+        fast=True,
+        **kwargs
     ), 16, dither_type="none")
     
     msrcp = nl_means(msrcpa, h=sigma2, a=2)
@@ -483,13 +511,130 @@ def advanced_edgemask(
         Kirsch.edgemask(get_y(clipd), clamp=False, lthr=kirsch_thr)
     ], "x y max")
     
-    
     edge_thr_scaled = scale_binary_value(edges, edge_thr, return_int=True)
-    tcanny_min = tcanny.std.Minimum(coordinates=[1, 0, 1, 0, 0, 1, 0, 1])
     mask = core.akarin.Expr(
-        [edges, tcanny_min, kirco], 
+        [edges, tcanny, kirco], 
         f"x y + {edge_thr_scaled} < x y + z {kirsch_weight} * + x y + ?"
     )
-    
+
     return mask
 
+
+def godflatmask(
+    clip: vs.VideoNode,
+    ref: Optional[vs.VideoNode] = None,
+    sigma1: float = 3,
+    retinex_sigma: list[float] = [50, 200, 350],
+    sigma2: float = 1,
+    sharpness: float = 0.8,
+    edge_thr: float = 0.55,
+    texture_strength: float = 2,
+    edges_strength: float = 0.02,
+    blur: float = 2,
+    expand: int = 3,
+    **kwargs
+) -> vs.VideoNode:
+    """
+    Advanced edge mask combining Retinex preprocessing with multiple edge detectors.
+    
+    This mask uses BM3D denoising + Multi-Scale Retinex to enhance edges before detection,
+    then combines Sobel, Prewitt, TCanny and Kirsch edge detectors for robust edge detection.
+    
+    :param clip:                Clip to process (YUV or Gray).
+    :param ref:                 Optional reference clip for denoising.
+    :param sigma1:              BM3D sigma for initial denoising. Default: 3.
+    :param retinex_sigma:       Sigma values for Multi-Scale Retinex. Default: [50, 200, 350].
+    :param sigma2:              Nlmeans strength for post-Retinex denoising. Default: 1.
+    :param sharpness:           CAS sharpening amount (0-1). Default: 0.8.
+    :param edge_thr:            Threshold for edge combination logic (0-1). This allows to separate edges from texture. Default: 0.55. 
+    :param texture_strength:    Texture strength for mask (0-inf). Values above 1 decrese the strength of the texture in the mask, lower values increase it. The max value is theoretical infinite, but there is no gain after some point. Default: 0.8. 
+    :param edges_strength:      Edges strength for mask (0-1). Basic multiplier for edges strength. Default: 0.03.
+    :param blur:                Blur amount for mask (0-1). Default: 2.
+    :param expand:              Expand amount for mask (0-1). Higher value increases the size of the texture in the mask. Default: 3.
+    :param kwargs:              Additional arguments for Retinex.
+    :return:                    Edge mask (Gray clip) where dark values are texture and edges, bright values are flat areas.
+    """
+
+    from vstools import get_y, depth
+    from vsdenoise import nl_means
+    from vsmasktools import Morpho, Kirsch, XxpandMode
+    from .adfunc import mini_BM3D
+    from .adutils import scale_binary_value
+    from vsrgtools import gauss_blur
+    
+    core = vs.core
+    
+    if clip.format.color_family == vs.RGB:
+        raise ValueError("advanced_edgemask: RGB clips are not supported.")
+    
+    if clip.format.color_family == vs.GRAY:
+        luma = clip
+    else:
+        luma = get_y(clip)
+    
+    if luma.format.bits_per_sample != 16:
+        luma = depth(luma, 16)
+
+    if ref is not None:
+        if ref.format.color_family == vs.RGB:
+            raise ValueError("advanced_edgemask: RGB reference clips are not supported.")
+        
+        if ref.format.color_family == vs.GRAY:
+            ref_y = ref
+        else:
+            ref_y = get_y(ref)
+            
+        if ref_y.format.bits_per_sample != 16:
+            ref_y = depth(ref_y, 16)
+        clipd = mini_BM3D(luma, sigma=sigma1, ref=ref_y, radius=1, profile="HIGH", planes=0)
+    else:
+        clipd = mini_BM3D(luma, sigma=sigma1, radius=1, profile="HIGH", planes=0)
+
+    msrcpa = depth(unbloat_retinex(
+        depth(clipd, 32), 
+        sigma=retinex_sigma,
+        fast=True,
+        **kwargs
+    ), 16, dither_type="none")
+    
+    msrcp = nl_means(msrcpa, h=sigma2, a=2)
+    
+    if sharpness > 0:
+        msrcp = core.cas.CAS(msrcp, sharpness=sharpness, opt=0, planes=0)
+        clipd = core.cas.CAS(clipd, sharpness=sharpness, opt=0, planes=0)
+    
+    edges = core.akarin.Expr([
+        msrcp.std.Sobel(),
+        clipd.std.Sobel(),
+        msrcp.std.Prewitt(),
+        clipd.std.Prewitt()
+    ], "x y max z a max +")
+
+    if edge_thr > 0:
+        edges = _soft_threshold(edges, edge_thr, 10)
+    
+    tcanny = core.akarin.Expr([
+        core.tcanny.TCanny(msrcp, mode=1, sigma=0),
+        core.tcanny.TCanny(clipd, mode=1, sigma=0)
+    ], "x y max")
+    tcanny = core.std.Minimum(tcanny)
+
+    edgescombo = Morpho.inflate(core.akarin.Expr([edges, tcanny], "x y +"), iterations=2)
+    
+    kirco = core.akarin.Expr([
+        Kirsch.edgemask(msrcp),
+        Kirsch.edgemask(clipd)
+    ], "x y +")
+
+    edges_expanded = Morpho.expand(edgescombo, mode=XxpandMode.ELLIPSE, sw=1, sh=1)
+    kirco_diff = core.akarin.Expr([kirco, edges_expanded], "x y -")
+    kirco_expanded = Morpho.expand(kirco_diff, mode=XxpandMode.ELLIPSE, sw=expand, sh=expand)
+
+    edgescombo = core.akarin.Expr(edgescombo.std.Invert(), f"x {scale_binary_value(luma, edges_strength, return_int=True)} +")
+    kirco_expanded = luma_mask_man(kirco_expanded, t=0.001, s=texture_strength, a=0.5)
+
+    mask = core.akarin.Expr([edgescombo.std.Invert(), kirco_expanded.std.Invert()], "x y +")
+
+    mask = gauss_blur(mask, blur)
+
+    return mask
