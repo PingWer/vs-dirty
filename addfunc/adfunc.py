@@ -175,7 +175,7 @@ class adenoise:
     while mc_degrain affects only the luma, which is then passed to BM3D for a second denoising pass.
     If precision = True, a series of masks are created to enhance the denoise strength on flat areas avoiding textured area.
 
-    Luma masks ensure that denoising is applied only to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
+    Luma masks ensure that denoising is applied mostly to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
     Note: Luma masks are more sensitive to variations than the sigma value for the final result.
 
     :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with void dither).
@@ -184,7 +184,10 @@ class adenoise:
     :param tr:                  Temporal radius for temporal consistency across al the filter involved.
                                 Recommended values: 2-3 (1 means no temporal denoise).
     :param sigma:               Sigma for BM3D (luma denoise strength).
-                                Recommended values: 1-5. If precision = True, you can safely double he value used.
+                                Recommended values: 1-5. 
+    :param sigma_mask:          Sigma for flat mask denoising.
+                                This value should be decided based on the details level of the clip and how much grain and noise is present.
+                                Usally 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain.
     :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger overall denoise.
                                 Recommended values: 0.6-0.9
     :param luma_mask_thr:       Threshold that determines what is considered bright and what is dark in the luma mask.
@@ -196,8 +199,8 @@ class adenoise:
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (90% accuracy).
     :param chroma_masking:      If True, enables specific chroma masking for U/V planes.
     :param show_mask:           1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
-    :param flat_penalty:        Multiplier for the flat mask in precision mode. Higher values decrease denoising strength in flat areas.
-    :param texture_penalty:     Multiplier for the texture mask in precision mode. Higher values decrease denoising strength in textured areas to preserve detail.
+    :param luma_penalty:        Multiplier for the luma mask in precision mode. This value is combined with texture_penalty and their sum must be always 1. Lower value means more importance to textured areas.
+    :param texture_penalty:     Multiplier for the texture mask in precision mode. This value is combined with luma_penalty and their sum must be always 1. Lower value means more importance to overall denoise.
 
     :return:                    16bit denoised clip. If show_mask is 1, 2, 3, 4 or 5, returns a tuple (denoised_clip, mask).
     """
