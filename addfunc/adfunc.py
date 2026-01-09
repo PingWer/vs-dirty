@@ -226,9 +226,8 @@ class adenoise:
     ) -> vs.VideoNode:
         
         from vstools import get_y, get_u, get_v, depth
-        from vsmasktools import Morpho
         from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
-        from .admask import flat_mask, luma_mask_ping, luma_mask_man, godflatmask
+        from .admask import luma_mask_ping, luma_mask_man, godflatmask
 
         core = vs.core
 
@@ -240,9 +239,6 @@ class adenoise:
 
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.akarin.Expr([lumamask], f"x {luma_mask_weaken} *")
-
-        if show_mask == 1:
-            return darken_luma_mask
 
         #Degrain
         if "is_digital" not in kwargs:
@@ -256,16 +252,11 @@ class adenoise:
 
         if precision:
             flatmask = godflatmask(degrain, sigma1=sigma_mask)
-            if show_mask == 2:
-                selected_mask = flatmask
             if luma_penalty + texture_penalty != 1.0:
                 raise ValueError("luma_penalty + texture_penalty must be equal to 1")
             darken_luma_mask = core.akarin.Expr(
             [darken_luma_mask, flatmask],
             f"x {luma_penalty} * y {texture_penalty} * +")
-            
-        if show_mask == 3:
-            return darken_luma_mask
         
         denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr, profile="HIGH", planes=0)
         luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) #denoise applied to darker areas
@@ -294,11 +285,6 @@ class adenoise:
             u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
             chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
         
-            if show_mask == 4:
-                return v_mask
-            elif show_mask == 5:
-                return u_mask
-        
         final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
         return final
     
@@ -323,9 +309,8 @@ class adenoise:
     ) -> tuple[vs.VideoNode, vs.VideoNode]:
         
         from vstools import get_y, get_u, get_v, depth
-        from vsmasktools import Morpho
         from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
-        from .admask import flat_mask, luma_mask_ping, luma_mask_man, godflatmask
+        from .admask import luma_mask_ping, luma_mask_man, godflatmask
 
         core = vs.core
         
