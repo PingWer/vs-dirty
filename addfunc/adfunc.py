@@ -51,6 +51,7 @@ def mini_BM3D(
                     return core.bm3dhip.BM3Dv2(clip, ref, **kwargs)
                 except Exception:
                     kwargs.pop("fast", None)
+                    kwargs.pop("ps_range", kwargs.get("ps_range")[0])
                     return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "CUDA":
             return core.bm3dcuda.BM3Dv2(clip, ref, **kwargs)
@@ -58,6 +59,7 @@ def mini_BM3D(
             return core.bm3dhip.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "CPU":
             kwargs.pop("fast", None)
+            kwargs.pop("ps_range", kwargs.get("ps_range")[0])
             return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
 
     clipS = depth(clip, 32)
