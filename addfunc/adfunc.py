@@ -59,21 +59,13 @@ def mini_BM3D(
         elif accel_u == "CPU":
             kwargs.pop("fast", None)
             return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
-        
-    
-    if clip.format.bits_per_sample != 32:
-        clipS = depth(clip, 32)
-    else:
-        clipS = clip
+
+    clipS = depth(clip, 32)
     
     if ref is not None:
-        if ref.format.bits_per_sample != 32:
-            refS = depth(ref, 32)
-        else:
-            refS = ref
+        refS = depth(ref, 32)
     else:
         refS = None
-
 
     profiles = {
         "FAST": {
@@ -93,7 +85,7 @@ def mini_BM3D(
         },
     }
 
-    profile_u = profile.upper() if isinstance(profile, str) else str(profile).upper()
+    profile_u = str(profile).upper()
 
     if profile_u not in profiles:
         raise ValueError(f"mini_BM3D: Profile '{profile}' not recognized.")
@@ -118,8 +110,8 @@ def mini_BM3D(
 
     if clip.format.color_family == vs.RGB:
         filtered_planes = [
-            _bm3d(plane(clipS, i), accel, **kwargs) if i in planes and 0 <= i < num_planes else plane(clipS, i)
-            for i in range(num_planes)
+            _bm3d(plane(clipS, p), accel, **kwargs) if p in planes and 0 <= p < num_planes else plane(clipS, p)
+            for p in range(num_planes)
         ]
         dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
 
@@ -128,36 +120,34 @@ def mini_BM3D(
         u = get_u(clipS)
         v = get_v(clipS)
 
-        yr = ur = vr = None
+        y_ref = None
         if refS is not None:
-            if refS.format.num_planes == 3:
-                yr = get_y(refS); ur = get_u(refS); vr = get_v(refS)
-            elif refS.format.num_planes == 1:
-                yr = refS
-            else:
+            if refS.format.num_planes not in (1, 3):
                 raise ValueError("mini_BM3D: When providing a reference clip for YUV, it must have 1 or 3 planes.")
+            y_ref = get_y(refS)
 
-        yd = _bm3d(y, accel, ref=yr, **kwargs) if 0 in planes else y
+        y_denoised = _bm3d(y, accel, ref=y_ref, **kwargs) if 0 in planes else y
 
         if 1 in planes or 2 in planes:
-            y_resized = y.resize.Spline36(u.width, u.height)
+            y_downscaled = y.resize.Spline36(u.width, u.height)
 
-            clipr444 = None
+            ref_444 = None
             if refS is not None and refS.format.num_planes == 3:
-                yr_resized = yr.resize.Spline36(u.width, u.height)
-                clipr444 = core.std.ShufflePlanes([yr_resized, ur, vr], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+                u_ref = get_u(refS); v_ref = get_v(refS)
+                y_ref_downscaled = y_ref.resize.Spline36(u.width, u.height)
+                ref_444 = core.std.ShufflePlanes([y_ref_downscaled, u_ref, v_ref], planes=[0, 0, 0], colorfamily=clip.format.color_family)
             elif refS is not None and refS.format.num_planes == 1:
-                clipr444 = yr
+                ref_444 = y_ref
 
-            clip444 = core.std.ShufflePlanes([y_resized, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
-            clip444 = _bm3d(clip444, accel, ref=clipr444, chroma=True, **kwargs) if clipr444 is not None else _bm3d(clip444, accel, chroma=True, **kwargs)
+            clip_444 = core.std.ShufflePlanes([y_downscaled, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+            clip_444 = _bm3d(clip_444, accel, ref=ref_444, chroma=True, **kwargs) if ref_444 is not None else _bm3d(clip_444, accel, chroma=True, **kwargs)
 
             if 1 in planes:
-                u = get_u(clip444)
+                u = get_u(clip_444)
             if 2 in planes:
-                v = get_v(clip444)
+                v = get_v(clip_444)
 
-        dclip = core.std.ShufflePlanes([yd, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+        dclip = core.std.ShufflePlanes([y_denoised, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
 
     else:
         raise ValueError("mini_BM3D: Unsupported color family.")
