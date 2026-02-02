@@ -14,17 +14,37 @@ class Test(unittest.TestCase):
 
     def test_mini_BM3D(self):
         """ Test mini_BM3D with and without reference clip """
-        from adfunc import mini_BM3D
+        from addfunc.adfunc import mini_BM3D
 
         for video in self.videos:
             with self.subTest(video=video):
                 mini_BM3D(video, sigma=5)
+                mini_BM3D(video, sigma=5, planes=[0])
             with self.subTest(video=video):
                 mini_BM3D(video, sigma=5, ref=video)
+                mini_BM3D(video, sigma=5, ref=video, planes=[0])
             with self.subTest(video=video):
                 mini_BM3D(video, sigma=5, accel="CPU")
+                mini_BM3D(video, sigma=5, planes=[0], accel="CPU")
             with self.subTest(video=video):
                 mini_BM3D(video, sigma=5, ref=video, accel="CPU")
+                mini_BM3D(video, sigma=5, ref=video, planes=[0], accel="CPU")
+
+    def test_adenoise(self):
+        """ Test adenoise with all defaults and with reference clip """
+        from addfunc.adfunc import adenoise
+
+        for video in self.videos:
+            with self.subTest(video=video):
+                adenoise.scan8mm(video)
+            with self.subTest(video=video):
+                adenoise.scan16mm(video)
+            with self.subTest(video=video):
+                adenoise.scan35mm(video)
+            with self.subTest(video=video):
+                adenoise.digital(video)
+            with self.subTest(video=video):
+                adenoise.default(video)
 
 if __name__ == '__main__':
     unittest.main()
