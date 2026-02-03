@@ -438,15 +438,12 @@ def auto_deblock(
     Deblocker 8x8 and other.
 
     :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit).
-    :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
-                                Recommended values: 300-800
-    :param tr:                  Temporal radius for temporal consistency across al the filter involved.
-                                Recommended values: 2-3 (1 means no temporal denoise).
-    :param sigma:               Sigma for BM3D (luma denoise strength).
-                                Recommended values: 1-5. 
-    :param sigma_mask:          Sigma for flat mask denoising.
-                                This value should be decided based on the details level of the clip and how much grain and noise is present.
-                                Usally 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain.
+    :param sigma:               Sigma value for dfttest deblock.
+    :param tbsize:              Length of the temporal dimension (i.e. number of frames).
+    :param luma_mask_strength:  Mask strength multiplier. Lower values mean stronger overall deblock.
+    :param pre:                 If True, applies a preliminary deblocking with vsdenoise.deblock_qed.
+    :param mask_type:           Mask type to use.
+    :param planes:              Which planes to process. Defaults to all planes.
     """
 
     core=vs.core

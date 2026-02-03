@@ -50,5 +50,20 @@ class Test(unittest.TestCase):
             with self.subTest(video=video):
                 adenoise.default(video)
 
+    def test_auto_deblock(self):
+        """ Test auto_deblock with all defaults """
+        from addfunc.adfunc import auto_deblock
+
+        videos = self.videos[1:4]  # Grayscale and RGB not supported
+        for video in videos:
+            with self.subTest(video=video):
+                auto_deblock(video)
+            with self.subTest(video=video):
+                auto_deblock(video, pre=False)
+            with self.subTest(video=video):
+                auto_deblock(video, planes=[0, 1])
+            with self.subTest(video=video):
+                auto_deblock(video, pre=False, planes=[0, 1])
+
 if __name__ == '__main__':
     unittest.main()
