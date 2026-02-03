@@ -59,11 +59,11 @@ class Test(unittest.TestCase):
             with self.subTest(video=video):
                 auto_deblock(video)
             with self.subTest(video=video):
-                auto_deblock(video, pre=False)
+                auto_deblock(video, pre=True)
             with self.subTest(video=video):
-                auto_deblock(video, planes=[0, 1])
+                auto_deblock(video, planes=[0])
             with self.subTest(video=video):
-                auto_deblock(video, pre=False, planes=[0, 1])
+                auto_deblock(video, pre=True, planes=[0])
 
 if __name__ == '__main__':
     unittest.main()
