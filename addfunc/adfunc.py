@@ -168,7 +168,7 @@ class adenoise:
     Luma masks ensure that denoising is applied mostly to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
     Note: Luma masks are more sensitive to variations than the sigma value for the final result.
 
-    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit).
+    :param clip:                Clip to process (YUV or GRAY 16bit, if not will be internally converted in 16bit).
     :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
                                 Recommended values: 300-800
     :param tr:                  Temporal radius for temporal consistency across al the filter involved.
@@ -224,8 +224,8 @@ class adenoise:
 
         core = vs.core
 
-        if clip.format.color_family not in {vs.YUV}:
-            raise ValueError('adaptive_denoiser: only YUV formats are supported')
+        if clip.format.color_family not in {vs.YUV, vs.GRAY}:
+            raise ValueError('adaptive_denoiser: only YUV and GRAY formats are supported')
 
         depth(clip, 16, dither_type="none")
 
@@ -237,7 +237,8 @@ class adenoise:
             mvtools = MVTools(clip)
             vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
             mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*1.25, radius=tr, profile="LC", planes=0)
-            mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+            if clip.format.color_family == vs.YUV:
+                mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
             degrain = mc_degrain(clip, prefilter=Prefilter.DFTTEST, blksize=8, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr, limit=1)
         else:
             degrain = clip
@@ -268,7 +269,7 @@ class adenoise:
         v_mask = None #Per evitare UnboundLocalError
         u_mask = None
 
-        if chroma_masking and chroma_strength>0:
+        if chroma_masking and chroma_strength>0 and clip.format.color_family == vs.YUV:
             v=get_v(clip)
             v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
             v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
@@ -277,7 +278,10 @@ class adenoise:
             u_masked = core.std.MaskedMerge(u, get_u(chroma_denoised), u_mask)
             chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
         
-        final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
+        if clip.format.color_family == vs.GRAY:
+            final = luma
+        else:
+            final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
         return final
     
     @classmethod
@@ -310,8 +314,8 @@ class adenoise:
         
         selected_mask = None
 
-        if clip.format.color_family not in {vs.YUV}:
-            raise ValueError('adaptive_denoiser: only YUV formats are supported')
+        if clip.format.color_family not in {vs.YUV, vs.GRAY}:
+            raise ValueError('adaptive_denoiser: only YUV and GRAY formats are supported')
 
         clip = depth(clip, 16, dither_type="none")
 
@@ -326,7 +330,8 @@ class adenoise:
             mvtools = MVTools(clip)
             vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
             mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*1.25, radius=tr, profile="LC", planes=0)
-            mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+            if clip.format.color_family == vs.YUV:
+                mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
             degrain = mc_degrain(clip, prefilter=Prefilter.DFTTEST, blksize=8, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr, limit=1)
         else:
             degrain = clip
@@ -362,7 +367,7 @@ class adenoise:
         v_mask = None #Per evitare UnboundLocalError
         u_mask = None
 
-        if chroma_masking or chroma_strength<=0:
+        if (chroma_masking and chroma_strength>0) and clip.format.color_family == vs.YUV:
             v=get_v(clip)
             v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
             v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
@@ -376,7 +381,10 @@ class adenoise:
             elif show_mask == 5:
                 selected_mask = u_mask
         
-        final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
+        if clip.format.color_family == vs.GRAY:
+            final = luma
+        else:
+            final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
         return final, selected_mask
 
     # Presets

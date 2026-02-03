@@ -34,7 +34,7 @@ class Test(unittest.TestCase):
         """ Test adenoise with all defaults """
         from addfunc.adfunc import adenoise
 
-        videos = self.videos[1:4]  # Grayscale and RGB not supported
+        videos = self.videos[0:4]  # RGB not supported
         for video in videos:
             with self.subTest(video=video):
                 """ adenoise scan8mm """
