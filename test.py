@@ -31,16 +31,20 @@ class Test(unittest.TestCase):
                 mini_BM3D(video, sigma=5, ref=video, planes=[0], accel="CPU")
 
     def test_adenoise(self):
-        """ Test adenoise with all defaults and with reference clip """
+        """ Test adenoise with all defaults """
         from addfunc.adfunc import adenoise
 
-        for video in self.videos:
+        videos = self.videos[1:4]  # Grayscale and RGB not supported
+        for video in videos:
             with self.subTest(video=video):
+                """ adenoise scan8mm """
                 adenoise.scan8mm(video)
             with self.subTest(video=video):
                 adenoise.scan16mm(video)
             with self.subTest(video=video):
                 adenoise.scan35mm(video)
+            with self.subTest(video=video):
+                adenoise.scan65mm(video)
             with self.subTest(video=video):
                 adenoise.digital(video)
             with self.subTest(video=video):

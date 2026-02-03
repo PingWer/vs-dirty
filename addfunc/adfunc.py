@@ -419,11 +419,11 @@ class adenoise:
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, sigma_mask, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, luma_penalty, texture_penalty, texture_strength, edges_strength, is_digital=True)
     
     @staticmethod
-    def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, sigma: float = 6, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, luma_penalty: float = 0.4, texture_penalty: float = 0.6, texture_strength: float = 2, edges_strength: float = 0.05)->vs.VideoNode:
+    def default (clip:vs.VideoNode, thsad: int = 500, tr: int = 2, sigma: float = 6, sigma_mask: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_strength: float = 1.0, chroma_denoise: str = "nlm", precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, luma_penalty: float = 0.4, texture_penalty: float = 0.6, texture_strength: float = 2, edges_strength: float = 0.05)->vs.VideoNode:
         """ default profile """
         if show_mask in [1, 2, 3, 4, 5]:
-            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, luma_penalty, texture_penalty, texture_strength, edges_strength)
-        return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, luma_penalty, texture_penalty, texture_strength, edges_strength)
+            return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, sigma_mask, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, luma_penalty, texture_penalty, texture_strength, edges_strength)
+        return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, sigma_mask, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, luma_penalty, texture_penalty, texture_strength, edges_strength)
 
 #TODO
 #Ported from fvsfunc 
