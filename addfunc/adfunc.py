@@ -110,7 +110,7 @@ def mini_BM3D(
 
     if clip.format.color_family == vs.RGB:
         filtered_planes = [
-            _bm3d(plane(clipS, p), accel, **kwargs) if p in planes and 0 <= p < num_planes else plane(clipS, p)
+            _bm3d(plane(clipS, p), accel, **kwargs) if p in planes else plane(clipS, p)
             for p in range(num_planes)
         ]
         dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
@@ -506,7 +506,7 @@ def msaa2x(
         ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
     
     masks = [
-        plane(ref, p) if p in planes and 0 <= p < 3 else None
+        plane(ref, p) if p in planes else None
         for p in range(3)
     ]
             
