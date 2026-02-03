@@ -12,7 +12,7 @@ def mini_BM3D(
     clip: vs.VideoNode, 
     profile: str = "LC", 
     accel: Optional[str] = None,
-    planes: PlanesT = None,
+    planes: PlanesT = [0, 1, 2],
     ref: Optional[vs.VideoNode] = None,
     dither: Optional[str] = "error_diffusion",
     fast: Optional[bool] = False,
@@ -104,8 +104,6 @@ def mini_BM3D(
     if clip.format.color_family == vs.GRAY:
         return depth(_bm3d(clipS, accel, refS, **kwargs), clip.format.bits_per_sample) if refS is None else depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
 
-    if planes is None:
-        planes = [0, 1, 2]
     if isinstance(planes, int):
         planes = [planes]
     planes = list(dict.fromkeys(int(p) for p in planes))
@@ -423,7 +421,6 @@ class adenoise:
             return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, sigma_mask, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, show_mask, luma_penalty, texture_penalty, texture_strength, edges_strength)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, sigma_mask, luma_mask_weaken, luma_mask_thr, chroma_strength, chroma_denoise, precision, chroma_masking, luma_penalty, texture_penalty, texture_strength, edges_strength)
 
-#TODO
 #Ported from fvsfunc 
 def auto_deblock(
     clip: vs.VideoNode,
@@ -446,15 +443,9 @@ def auto_deblock(
     :param planes:              Which planes to process. Defaults to all planes.
     """
 
-    core=vs.core
     from .admask import luma_mask_ping, luma_mask_man, luma_mask
     from vsdenoise import deblock_qed
     from vstools import depth
-    
-    try:
-        from functools import partial
-    except ImportError:
-        raise ImportError('functools is required')
 
     if clip.format.color_family not in [vs.YUV]:
         raise TypeError("AutoDeblock: clip must be YUV color family!")
@@ -477,7 +468,7 @@ def auto_deblock(
 
     return final
 
-
+#TODO: advanced_edgemask
 def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
@@ -490,7 +481,7 @@ def msaa2x(
     """
     Upscales only the edges with AI (ArtCNN DN) and downscales them.
 
-    :param clip:            Clip to apply msaa2x.
+    :param clip:            Clip to process (YUV or Grayscale).
     :param ref:             Reference clip used to create the edgemask (should be the original not filtered clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
     :param mask:            If True will return the mask used.
     :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
@@ -499,7 +490,7 @@ def msaa2x(
     :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN
-    from vstools import get_u, get_v, get_y
+    from vstools import get_y, get_u, get_v, plane
     from addfunc.admask import advanced_edgemask
     from addfunc.adutils import scale_binary_value
 
@@ -514,15 +505,11 @@ def msaa2x(
     if ref is None:
         ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
     
-    masks = [None, None, None]
-    for p in planes:
-        if p == 0:
-            masks[0] = advanced_edgemask(get_y(ref), **kwargs)
-        elif p == 1:
-            masks[1] = advanced_edgemask(get_u(ref), **kwargs)
-        elif p == 2:
-            masks[2] = advanced_edgemask(get_v(ref), **kwargs)
-    
+    masks = [
+        plane(ref, p) if p in planes and 0 <= p < 3 else None
+        for p in range(3)
+    ]
+            
     if len(planes) == 1:
         edgemask = masks[planes[0]]
     else:
