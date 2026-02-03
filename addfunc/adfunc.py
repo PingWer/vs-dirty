@@ -21,7 +21,7 @@ def mini_BM3D(
     """
     BM3D mini wrapper.
 
-    :param clip:            Clip to process. Must be 32 bit float format.
+    :param clip:            Clip to process (32bit, if not will be internally converted in 32bit).
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu", "auto".
     :param planes:          Which planes to process. Defaults to all planes.
@@ -62,10 +62,10 @@ def mini_BM3D(
             kwargs.pop("ps_range", kwargs.get("ps_range")[0])
             return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
 
-    clipS = depth(clip, 32)
+    clipS = depth(clip, 32, dither_type="none")
     
     if ref is not None:
-        refS = depth(ref, 32)
+        refS = depth(ref, 32, dither_type="none")
     else:
         refS = None
 
@@ -170,7 +170,7 @@ class adenoise:
     Luma masks ensure that denoising is applied mostly to the brighter areas of the frame, preserving details in darker regions while cleaning them as much as possible.
     Note: Luma masks are more sensitive to variations than the sigma value for the final result.
 
-    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit with void dither).
+    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit).
     :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
                                 Recommended values: 300-800
     :param tr:                  Temporal radius for temporal consistency across al the filter involved.
@@ -229,8 +229,7 @@ class adenoise:
         if clip.format.color_family not in {vs.YUV}:
             raise ValueError('adaptive_denoiser: only YUV formats are supported')
 
-        if clip.format.bits_per_sample != 16:
-            clip = depth(clip, 16, dither_type="none")
+        depth(clip, 16, dither_type="none")
 
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.akarin.Expr([lumamask], f"x {luma_mask_weaken} *")
@@ -316,8 +315,7 @@ class adenoise:
         if clip.format.color_family not in {vs.YUV}:
             raise ValueError('adaptive_denoiser: only YUV formats are supported')
 
-        if clip.format.bits_per_sample != 16:
-            clip = depth(clip, 16, dither_type="none")
+        clip = depth(clip, 16, dither_type="none")
 
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.akarin.Expr([lumamask], f"x {luma_mask_weaken} *")
@@ -438,6 +436,17 @@ def auto_deblock(
 ) -> vs.VideoNode:
     """
     Deblocker 8x8 and other.
+
+    :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit).
+    :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
+                                Recommended values: 300-800
+    :param tr:                  Temporal radius for temporal consistency across al the filter involved.
+                                Recommended values: 2-3 (1 means no temporal denoise).
+    :param sigma:               Sigma for BM3D (luma denoise strength).
+                                Recommended values: 1-5. 
+    :param sigma_mask:          Sigma for flat mask denoising.
+                                This value should be decided based on the details level of the clip and how much grain and noise is present.
+                                Usally 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain.
     """
 
     core=vs.core
@@ -453,8 +462,7 @@ def auto_deblock(
     if clip.format.color_family not in [vs.YUV]:
         raise TypeError("AutoDeblock: clip must be YUV color family!")
 
-    if clip.format.bits_per_sample != 16:
-        clip = depth(clip, 16)
+    clip = depth(clip, 16, dither_type="none")
     
     if pre:
         clip = deblock_qed(clip, planes=planes)
