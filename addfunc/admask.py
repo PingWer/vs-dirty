@@ -51,9 +51,9 @@ def luma_mask (
         sthmax: float = 0.95,
         sthmin: float = 1.4,
 )-> vs.VideoNode :
-    from vstools import get_y
+    from .adutils import plane
     
-    luma = get_y(clip)
+    luma = plane(clip, 0)
     lumamask = core.std.Expr(
         [luma],
         "x {0} < x {2} * x {0} - 0.0001 + log {1} * exp x + ?".format(min_value, sthmax, sthmin)
@@ -81,9 +81,9 @@ def luma_mask_man (
     :param a:               
     :return:                Luma mask.
     """
-    from vstools import get_y
+    from .adutils import plane
     
-    luma = get_y(clip)
+    luma = plane(clip, 0)
     f=1/3
 
     maxvalue = (1 << clip.format.bits_per_sample) - 1
@@ -126,9 +126,8 @@ def luma_mask_ping(
     """
 
     core = vs.core
-    from vstools import get_y
     import math
-    from .adutils import scale_binary_value
+    from .adutils import scale_binary_value, plane
 
     bit_depth = clip.format.bits_per_sample
     max_val = (1 << bit_depth) - 1
@@ -146,7 +145,7 @@ def luma_mask_ping(
         f"x *"
     )
 
-    cc = core.akarin.Expr([get_y(clip)], expr)
+    cc = core.akarin.Expr([plane(clip, 0)], expr)
 
     cc = core.std.Invert(cc)
 
@@ -177,8 +176,8 @@ def flat_mask(
     """
 
     core = vs.core
-    from vstools import get_y, depth
-    from .adutils import scale_binary_value
+    from vstools import depth
+    from .adutils import scale_binary_value, plane
 
     def _add_stddev(n, f):
         core = vs.core
@@ -187,10 +186,7 @@ def flat_mask(
         stddev = _get_stdev(avg, avg_sq)
         return core.std.SetFrameProp(y, prop="std_dev", floatval=stddev)
 
-    y = get_y(clip)
-
-    if y.format.bits_per_sample != 16:
-        y = depth(y, 16)
+    y = depth(plane(clip, 0), 16)
 
     # Add stats to the clip
     stats_avg = y.std.PlaneStats() 
@@ -245,8 +241,8 @@ def edgemask(
     '''
     
     core=vs.core
-    from vstools import get_y, depth, get_u, get_v, join, split
-    from .adutils import scale_binary_value
+    from vstools import depth, join, split
+    from .adutils import scale_binary_value, plane
     from .adfunc import mini_BM3D
     from vsdenoise import nl_means
     from vsmasktools import Morpho
@@ -259,8 +255,8 @@ def edgemask(
         work_ref = ref
         plane=[0,1,2]
     else:
-        work_clip = get_y(clip)
-        work_ref = get_y(ref) if ref is not None else None
+        work_clip = plane(clip, 0)
+        work_ref = plane(ref, 0) if ref is not None else None
         plane=[0]
 
     if work_clip.format.bits_per_sample != 16:
@@ -421,7 +417,6 @@ def advanced_edgemask(
     kirsch_weight: float = 0.5,
     kirsch_thr: float = 0.35,
     edge_thr: float = 0.02,
-    func: Optional[bool] = False,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -458,8 +453,7 @@ def advanced_edgemask(
     else:
         luma = get_y(clip)
     
-    if luma.format.bits_per_sample != 16:
-        luma = depth(luma, 16) # 32 bit potrebbe avere senso?
+    luma = depth(luma, 16)
 
     if ref is not None:
         if ref.format.color_family == vs.RGB:
