@@ -396,11 +396,11 @@ def hd_flatmask(
     :return:                    Edge mask (Gray clip) where dark values are texture and edges, bright values are flat areas.
     """
 
-    from vstools import get_y, depth
+    from vstools import depth
     from vsdenoise import nl_means
     from vsmasktools import Morpho, Kirsch, XxpandMode
     from .adfunc import mini_BM3D
-    from .adutils import scale_binary_value
+    from .adutils import scale_binary_value, plane
     from vsrgtools import gauss_blur
     
     core = vs.core
@@ -411,10 +411,9 @@ def hd_flatmask(
     if clip.format.color_family == vs.GRAY:
         luma = clip
     else:
-        luma = get_y(clip)
+        luma = plane(clip, 0)
     
-    if luma.format.bits_per_sample != 16:
-        luma = depth(luma, 16)
+    luma = depth(luma, 16)
 
     if ref is not None:
         if ref.format.color_family == vs.RGB:
@@ -423,7 +422,7 @@ def hd_flatmask(
         if ref.format.color_family == vs.GRAY:
             ref_y = ref
         else:
-            ref_y = get_y(ref)
+            ref_y = plane(ref, 0)
             
         if ref_y.format.bits_per_sample != 16:
             ref_y = depth(ref_y, 16)
