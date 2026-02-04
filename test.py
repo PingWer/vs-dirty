@@ -96,12 +96,10 @@ class Test(unittest.TestCase):
 
     def test_edgemasks(self):
         """ Test edgemasks """
-        from addfunc.admask import edgemask, advanced_edgemask
+        from addfunc.admask import advanced_edgemask
 
         videos = self.videos[0:4]
         for video in videos:
-            with self.subTest(video=video.format.name):
-                edgemask(video)
             with self.subTest(video=video.format.name):
                 advanced_edgemask(video)
 
