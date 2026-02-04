@@ -229,7 +229,7 @@ class adenoise:
         if clip.format.color_family not in {vs.YUV, vs.GRAY}:
             raise ValueError('adaptive_denoiser: only YUV and GRAY formats are supported')
 
-        depth(clip, 16, dither_type="none")
+        clip = depth(clip, 16, dither_type="none")
 
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.akarin.Expr([lumamask], f"x {luma_mask_weaken} *")
