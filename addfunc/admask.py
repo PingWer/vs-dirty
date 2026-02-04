@@ -168,9 +168,10 @@ def flat_mask(
 
     :param clip:            Clip to process.
     :param blur_radius:     Blur radius for the box blur. Default is 1 (should be fine for most content, increse if it has a serious amount of blocking).
-    :param thr_low:         Threshold for the low edge detection (This is a very sensible value, so it's better to leave it as default).
     :param sigma:           Sigma value for the BM3D denoiser. Higher values produce stronger denoising (this value should be higher then the standard, usually 1-2 for regular content, 4-5 for noisy).
     :param thr_high:        Threshold for the high edge detection. If None, a default value is calculated based on the standard deviation of the clip (suggested to leave None, except you are doing scene filtering).
+    :param thr_low:         Threshold for the low edge detection (This is a very sensible value, so it's better to leave it as default).
+    :param edge_thr:        TODO
     :param debug:           If True, prints the standard deviation and threshold values for each frame.
     :return:                Flat mask.
     """

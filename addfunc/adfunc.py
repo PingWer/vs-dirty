@@ -25,9 +25,10 @@ def mini_BM3D(
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu", "auto".
     :param planes:          Which planes to process. Defaults to all planes.
-    :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
-    :param kwargs:          Accepts DitherType class names.
+    :param ref:             Reference clip for BM3D (32bit, if not will be internally converted in 32bit).
+    :param dither:          Dithering method for the output clip. If None, no dithering is applied.
     :param fast:            Use CPU+GPU, adds overhead.
+    :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
     :return:                Denoised clip.
     """
     from vstools import depth
