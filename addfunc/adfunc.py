@@ -271,7 +271,7 @@ class adenoise:
         v_mask = None #Per evitare UnboundLocalError
         u_mask = None
 
-        if chroma_masking and chroma_strength>0 and clip.format.color_family == vs.YUV:
+        if (chroma_masking and chroma_strength>0) and clip.format.color_family == vs.YUV:
             v=get_v(clip)
             v_mask= luma_mask_man(v, t=1.5, s=2, a=0)
             v_masked = core.std.MaskedMerge(v, get_v(chroma_denoised), v_mask)
@@ -479,7 +479,6 @@ def auto_deblock(
 
     return final
 
-#TODO: advanced_edgemask
 def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
