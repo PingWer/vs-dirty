@@ -75,7 +75,7 @@ def luma_mask_man (
     
     Curve graph https://www.geogebra.org/calculator/cqnfnqyk
     
-    :param clip:            Clip to process.
+    :param clip:            Clip to process (only the first plane will be processed).
     :param s:               
     :param t:               Threshold that determines what is considered light and what is dark.
     :param a:               
@@ -119,7 +119,7 @@ def luma_mask_ping(
 
     Curve graph https://www.geogebra.org/calculator/fxbrx4s4
 
-    :param clip:            Clip to process.
+    :param clip:            Clip to process (only the first plane will be processed).
     :param low_amp:         General preamplification value, but more sensitive for values lower than thr.
     :param thr:             Threshold that determines what is considered bright and what is dark.
     :return:                Luma mask.
@@ -514,7 +514,7 @@ def advanced_edgemask(
     return mask
 
 
-def godflatmask(
+def hd_flatmask(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
     sigma1: float = 3,

@@ -48,6 +48,7 @@ class Test(unittest.TestCase):
                 adenoise.digital(video)
             with self.subTest(video=video.format.name):
                 adenoise.default(video)
+                adenoise.default(video, chroma_denoise="cbm3d")
 
     def test_auto_deblock(self):
         """ Test auto_deblock """
@@ -79,6 +80,47 @@ class Test(unittest.TestCase):
                 msaa2x(video, planes=[0])
             with self.subTest(video=video.format.name):
                 msaa2x(video, ref=video, planes=[0])
+
+    def test_luma_masks(self):
+        """ Test luma-based masks """
+        from addfunc.admask import luma_mask, luma_mask_man, luma_mask_ping
+
+        for video in self.videos:
+            with self.subTest(video=video.format.name):
+                luma_mask(video)
+            with self.subTest(video=video.format.name):
+                luma_mask_man(video)
+            with self.subTest(video=video.format.name):
+                luma_mask_ping(video)
+
+    def test_edgemasks(self):
+        """ Test edgemasks """
+        from addfunc.admask import edgemask, advanced_edgemask
+
+        videos = self.videos[0:4]
+        for video in videos:
+            with self.subTest(video=video.format.name):
+                edgemask(video)
+            with self.subTest(video=video.format.name):
+                advanced_edgemask(video)
+
+    def test_retinex(self):
+        """ Test retinex """
+        from addfunc.admask import unbloat_retinex
+
+        videos = self.videos[0]
+        for video in videos:
+            with self.subTest(video=video.format.name):
+                unbloat_retinex(video)
+        
+    def test_hd_flatmask(self):
+        """ Test hd_flatmask """
+        from addfunc.admask import hd_flatmask
+
+        videos = self.videos[0:4]
+        for video in videos:
+            with self.subTest(video=video.format.name):
+                hd_flatmask(video)
 
 if __name__ == '__main__':
     unittest.main()

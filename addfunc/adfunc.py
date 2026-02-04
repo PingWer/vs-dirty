@@ -5,8 +5,8 @@ from vstools import PlanesT
 
 core = vs.core
 
-if not (hasattr(core, 'dfttest') or hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
-    raise ImportError("'dfttest', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
+if not (hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
+    raise ImportError("'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
 def mini_BM3D(
     clip: vs.VideoNode, 
@@ -221,7 +221,7 @@ class adenoise:
         
         from vstools import get_y, get_u, get_v, depth
         from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
-        from .admask import luma_mask_ping, luma_mask_man, godflatmask
+        from .admask import luma_mask_ping, luma_mask_man, hd_flatmask
 
         core = vs.core
 
@@ -245,7 +245,7 @@ class adenoise:
             degrain = clip
 
         if precision:
-            flatmask = godflatmask(degrain, sigma1=sigma_mask, texture_strength=texture_strength, edges_strength=edges_strength)
+            flatmask = hd_flatmask(degrain, sigma1=sigma_mask, texture_strength=texture_strength, edges_strength=edges_strength)
             if luma_penalty + texture_penalty != 1.0:
                 raise ValueError("luma_penalty + texture_penalty must be equal to 1")
             darken_luma_mask = core.akarin.Expr(
@@ -309,7 +309,7 @@ class adenoise:
         
         from vstools import get_y, get_u, get_v, depth
         from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
-        from .admask import luma_mask_ping, luma_mask_man, godflatmask
+        from .admask import luma_mask_ping, luma_mask_man, hd_flatmask
 
         core = vs.core
         
@@ -338,7 +338,7 @@ class adenoise:
             degrain = clip
 
         if precision:
-            flatmask = godflatmask(degrain, sigma1=sigma_mask, texture_strength=texture_strength, edges_strength=edges_strength)
+            flatmask = hd_flatmask(degrain, sigma1=sigma_mask, texture_strength=texture_strength, edges_strength=edges_strength)
             if show_mask == 2:
                 selected_mask = flatmask
             if luma_penalty + texture_penalty != 1.0:
