@@ -513,18 +513,14 @@ def msaa2x(
 
     if ref is None:
         ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
-    
-    masks = [
-        plane(ref, p) if p in planes else None
-        for p in range(3)
-    ]
             
     if len(planes) == 1:
-        edgemask = masks[planes[0]]
+        edgemask = plane(ref, planes[0])
     else:
-        if masks[0] is None: masks[0] = get_y(ref).std.BlankClip()
-        if masks[1] is None: masks[1] = get_u(ref).std.BlankClip()
-        if masks[2] is None: masks[2] = get_v(ref).std.BlankClip()
+        masks = [
+            plane(ref, p) if p in planes else plane(ref, p).std.BlankClip()
+            for p in range(3)
+        ]
         edgemask = core.std.ShufflePlanes(masks, planes=[0, 0, 0], colorfamily=ref.format.color_family)
     
     if thr is not None and thr != 0:
@@ -540,6 +536,8 @@ def msaa2x(
         lefted = aa.resize.Spline36(src_left=-0.5)
         aa = core.std.ShufflePlanes([aa, lefted, lefted], planes=[0,1,2], colorfamily=clip.format.color_family)
         aa = ArtCNN.R8F64_Chroma().scale(aa)
+        # TODO: test
+        # aa = ArtCNN.R8F64_JPEG420().scale(aa)
         chroma_downscaled = core.resize.Bicubic(aa, clip.width/2, clip.height/2)
         u = get_u(chroma_downscaled)
         v = get_v(chroma_downscaled)

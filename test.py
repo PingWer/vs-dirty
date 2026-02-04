@@ -17,16 +17,16 @@ class Test(unittest.TestCase):
         from addfunc.adfunc import mini_BM3D
 
         for video in self.videos:
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 mini_BM3D(video, sigma=5)
                 mini_BM3D(video, sigma=5, planes=[0])
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 mini_BM3D(video, sigma=5, ref=video)
                 mini_BM3D(video, sigma=5, ref=video, planes=[0])
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 mini_BM3D(video, sigma=5, accel="CPU")
                 mini_BM3D(video, sigma=5, planes=[0], accel="CPU")
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 mini_BM3D(video, sigma=5, ref=video, accel="CPU")
                 mini_BM3D(video, sigma=5, ref=video, planes=[0], accel="CPU")
 
@@ -36,18 +36,17 @@ class Test(unittest.TestCase):
 
         videos = self.videos[0:4]  # RGB not supported
         for video in videos:
-            with self.subTest(video=video):
-                """ adenoise scan8mm """
+            with self.subTest(video=video.format.name):
                 adenoise.scan8mm(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 adenoise.scan16mm(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 adenoise.scan35mm(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 adenoise.scan65mm(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 adenoise.digital(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 adenoise.default(video)
 
     def test_auto_deblock(self):
@@ -56,13 +55,14 @@ class Test(unittest.TestCase):
 
         videos = self.videos[1:4]  # Grayscale and RGB not supported
         for video in videos:
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 auto_deblock(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 auto_deblock(video, pre=True)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 auto_deblock(video, planes=[0])
-            with self.subTest(video=video):
+                auto_deblock(video, planes=[1])
+            with self.subTest(video=video.format.name):
                 auto_deblock(video, pre=True, planes=[0])
 
     def test_msaa2x(self):
@@ -71,13 +71,13 @@ class Test(unittest.TestCase):
 
         videos = self.videos[0:4]
         for video in videos:
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 msaa2x(video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 msaa2x(video, ref=video)
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 msaa2x(video, planes=[0])
-            with self.subTest(video=video):
+            with self.subTest(video=video.format.name):
                 msaa2x(video, ref=video, planes=[0])
 
 if __name__ == '__main__':
