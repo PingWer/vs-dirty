@@ -234,17 +234,16 @@ class adenoise:
         lumamask = luma_mask_ping(clip, thr=luma_mask_thr)
         darken_luma_mask = core.akarin.Expr([lumamask], f"x {luma_mask_weaken} *")
 
-        #Degrain
+        # Degrain
         if "is_digital" not in kwargs:
+            # Mvtool initialization
             mvtools = MVTools(clip)
             vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-            mfilter = mini_BM3D(clip=get_y(clip), sigma=sigma*1.25, radius=tr, profile="LC", planes=0)
-            if clip.format.color_family == vs.YUV:
-                mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+            mfilter = mini_BM3D(clip, sigma=sigma*1.25, radius=tr, profile="LC", planes=0)
             degrain = mc_degrain(clip, prefilter=Prefilter.DFTTEST, blksize=8, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr, limit=1)
         else:
             degrain = clip
-
+            
         if precision:
             flatmask = hd_flatmask(degrain, sigma1=sigma_mask, texture_strength=texture_strength, edges_strength=edges_strength)
             if luma_penalty + texture_penalty != 1.0:
