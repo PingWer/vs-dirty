@@ -30,7 +30,8 @@ def mini_BM3D(
     :param fast:            Use CPU+GPU, adds overhead.
     :return:                Denoised clip.
     """
-    from vstools import depth, plane, get_y, get_u, get_v
+    from vstools import depth
+    from addfunc.adutils import plane
     
     def _bm3d (
         clip: vs.VideoNode,
@@ -116,15 +117,15 @@ def mini_BM3D(
         dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
 
     elif clip.format.color_family == vs.YUV:
-        y = get_y(clipS)
-        u = get_u(clipS)
-        v = get_v(clipS)
+        y = plane(clipS, 0)
+        u = plane(clipS, 1)
+        v = plane(clipS, 2)
 
         y_ref = None
         if refS is not None:
             if refS.format.num_planes not in (1, 3):
                 raise ValueError("mini_BM3D: When providing a reference clip for YUV, it must have 1 or 3 planes.")
-            y_ref = get_y(refS)
+            y_ref = plane(refS, 0)
 
         y_denoised = _bm3d(y, accel, ref=y_ref, **kwargs) if 0 in planes else y
 
@@ -133,7 +134,7 @@ def mini_BM3D(
 
             ref_444 = None
             if refS is not None and refS.format.num_planes == 3:
-                u_ref = get_u(refS); v_ref = get_v(refS)
+                u_ref = plane(refS, 1); v_ref = plane(refS, 2)
                 y_ref_downscaled = y_ref.resize.Spline36(u.width, u.height)
                 ref_444 = core.std.ShufflePlanes([y_ref_downscaled, u_ref, v_ref], planes=[0, 0, 0], colorfamily=clip.format.color_family)
             elif refS is not None and refS.format.num_planes == 1:
@@ -143,9 +144,9 @@ def mini_BM3D(
             clip_444 = _bm3d(clip_444, accel, ref=ref_444, chroma=True, **kwargs) if ref_444 is not None else _bm3d(clip_444, accel, chroma=True, **kwargs)
 
             if 1 in planes:
-                u = get_u(clip_444)
+                u = plane(clip_444, 1)
             if 2 in planes:
-                v = get_v(clip_444)
+                v = plane(clip_444, 2)
 
         dclip = core.std.ShufflePlanes([y_denoised, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
 
@@ -499,9 +500,9 @@ def msaa2x(
     :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN
-    from vstools import get_y, get_u, get_v, plane
+    from vstools import get_y, get_u, get_v
     from addfunc.admask import advanced_edgemask
-    from addfunc.adutils import scale_binary_value
+    from addfunc.adutils import scale_binary_value, plane
 
     if isinstance(planes, int):
         planes = [planes]

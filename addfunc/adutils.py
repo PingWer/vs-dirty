@@ -114,7 +114,7 @@ def diff_and_swap(
                             `selected` is a clip containing only the frames from clipa used for replacement 
                             (or None if no frames were swapped).
 	"""
-	from vstools import depth, get_y, replace_ranges
+	from vstools import depth, replace_ranges
 	core = vs.core
 
 	if not isinstance(clipa, vs.VideoNode) or not isinstance(clipb, vs.VideoNode):
@@ -129,9 +129,8 @@ def diff_and_swap(
 	if clipa.format.color_family != vs.YUV or clipb.format.color_family != vs.YUV:
 		raise vs.Error("diff_and_swap: only YUV clips are supported")
 
-	if clipa.format.bits_per_sample != 16 or clipb.format.bits_per_sample != 16:
-		clipa = depth(clipa, 16)
-		clipb = depth(clipb, 16)
+	clipa = depth(clipa, 16)
+	clipb = depth(clipb, 16)
 	
 	min_frames = min(clipa.num_frames, clipb.num_frames)
 	clipa_t = clipa.std.Trim(0, min_frames - 1) if clipa.num_frames != min_frames else clipa
@@ -157,7 +156,7 @@ def diff_and_swap(
 		
 		replacement = core.std.MaskedMerge(clipb_t, clipa_t, mask)
 	else:
-		diff_clip = core.std.Expr([get_y(clipa_t), get_y(clipb_t)], "x y - abs")
+		diff_clip = core.std.Expr([plane(clipa_t, 0), plane(clipb_t, 0)], "x y - abs")
 		replacement = clipa_t
 
 	if not explicit_ranges:
