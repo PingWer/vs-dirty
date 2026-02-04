@@ -515,7 +515,7 @@ def msaa2x(
         ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
             
     if len(planes) == 1:
-        edgemask = plane(ref, planes[0])
+        edgemask = advanced_edgemask(plane(ref, planes[0]), **kwargs)
     else:
         masks = [
             advanced_edgemask(plane(ref, p), **kwargs) if p in planes else plane(ref, p).std.BlankClip()
