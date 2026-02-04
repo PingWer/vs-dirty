@@ -500,7 +500,6 @@ def msaa2x(
     :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN
-    from vstools import get_y, get_u, get_v
     from addfunc.admask import advanced_edgemask
     from addfunc.adutils import scale_binary_value, plane
 
@@ -519,7 +518,7 @@ def msaa2x(
         edgemask = plane(ref, planes[0])
     else:
         masks = [
-            plane(ref, p) if p in planes else plane(ref, p).std.BlankClip()
+            advanced_edgemask(plane(ref, p), **kwargs) if p in planes else plane(ref, p).std.BlankClip()
             for p in range(3)
         ]
         edgemask = core.std.ShufflePlanes(masks, planes=[0, 0, 0], colorfamily=ref.format.color_family)
@@ -540,8 +539,8 @@ def msaa2x(
         # TODO: test
         # aa = ArtCNN.R8F64_JPEG420().scale(aa)
         chroma_downscaled = core.resize.Bicubic(aa, clip.width/2, clip.height/2)
-        u = get_u(chroma_downscaled)
-        v = get_v(chroma_downscaled)
+        u = plane(chroma_downscaled, 1)
+        v = plane(chroma_downscaled, 2)
         if 0 not in planes:
             downscaled = clip
         all_downscaled = core.std.ShufflePlanes([downscaled, u, v], planes=[0,0,0], colorfamily=clip.format.color_family)
