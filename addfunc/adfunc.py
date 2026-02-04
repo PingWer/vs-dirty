@@ -500,6 +500,7 @@ def msaa2x(
     :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN
+    from vstools import depth
     from addfunc.admask import advanced_edgemask
     from addfunc.adutils import scale_binary_value, plane
 
@@ -510,6 +511,8 @@ def msaa2x(
     
     if clip.format.color_family == vs.RGB:
         raise ValueError("msaa2x: clip must be YUV or Gray color family!")
+    
+    clip = depth(clip, 16, dither_type="none")
 
     if ref is None:
         ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
