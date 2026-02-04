@@ -265,10 +265,12 @@ class adenoise:
                 chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=degrain, planes=[1,2])
             if chroma_denoise == "cbm3d":
                 chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=degrain, planes=[1,2])
+            if chroma_denoise == "artcnn":
+                from vsscale import ArtCNN
+                chroma_denoised = ArtCNN.R8F64_JPEG420().scale(clip)
         
-        #TODO 
-        #chroma mask fine tuning
-        v_mask = None #Per evitare UnboundLocalError
+
+        v_mask = None # Avoid UnboundLocalError
         u_mask = None
 
         if chroma_masking and chroma_strength>0 and clip.format.color_family == vs.YUV:
@@ -363,6 +365,9 @@ class adenoise:
                 chroma_denoised = nl_means(clip, h=chroma_strength, tr=tr, ref=degrain, planes=[1,2])
             if chroma_denoise == "cbm3d":
                 chroma_denoised = mini_BM3D(clip, sigma=chroma_strength, radius=tr, ref=degrain, planes=[1,2])
+            if chroma_denoise == "artcnn":
+                from vsscale import ArtCNN
+                chroma_denoised = ArtCNN.R8F64_JPEG420().scale(clip)
         
         #TODO 
         #chroma mask fine tuning
@@ -479,7 +484,6 @@ def auto_deblock(
 
     return final
 
-#TODO: advanced_edgemask
 def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
@@ -540,8 +544,6 @@ def msaa2x(
         lefted = aa.resize.Spline36(src_left=-0.5)
         aa = core.std.ShufflePlanes([aa, lefted, lefted], planes=[0,1,2], colorfamily=clip.format.color_family)
         aa = ArtCNN.R8F64_Chroma().scale(aa)
-        # TODO: test
-        # aa = ArtCNN.R8F64_JPEG420().scale(aa)
         chroma_downscaled = core.resize.Bicubic(aa, clip.width/2, clip.height/2)
         u = plane(chroma_downscaled, 1)
         v = plane(chroma_downscaled, 2)

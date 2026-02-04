@@ -49,6 +49,7 @@ class Test(unittest.TestCase):
             with self.subTest(video=video.format.name):
                 adenoise.default(video)
                 adenoise.default(video, chroma_denoise="cbm3d")
+                adenoise.default(video, chroma_denoise="artcnn")
 
     def test_auto_deblock(self):
         """ Test auto_deblock """
