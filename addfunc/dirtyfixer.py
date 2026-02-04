@@ -1,7 +1,8 @@
 import vapoursynth as vs
 from typing import List
 from vstools import PlanesT
-from vstools import get_y, get_u, get_v, depth
+from vstools import depth
+from addfunc.adutils import plane
 
 core = vs.core
 
@@ -77,35 +78,35 @@ def bore(
 
     if clip.format.color_family == vs.GRAY:
         upclip = clip.resize.Bicubic(format=vs.YUV444PS)
-        fixY = get_y(depth(core.bore.SinglePlane(upclip, top=yt, bottom=yb, left=yl, right=yr, plane=0), clip.format.bits_per_sample))
+        fixY = plane(depth(core.bore.SinglePlane(upclip, top=yt, bottom=yb, left=yl, right=yr, plane=0), clip.format.bits_per_sample), 0)
         return fixY
 
-    fixY = get_y(clip)
-    fixU = get_u(clip)
-    fixV = get_v(clip)
+    fixY = plane(clip, 0)
+    fixU = plane(clip, 1)
+    fixV = plane(clip, 2)
 
     if 0 in planes:
         upclip = clip.resize.Bicubic(format=vs.YUV444PS)
         if singlePlane:
-            fixY = get_y(depth(core.bore.SinglePlane(upclip, top=yt, bottom=yb, left=yl, right=yr, plane=0), clip.format.bits_per_sample))
+            fixY = plane(depth(core.bore.SinglePlane(upclip, top=yt, bottom=yb, left=yl, right=yr, plane=0), clip.format.bits_per_sample), 0)
         else:
-            fixY = get_y(depth(core.bore.MultiPlane(upclip, top=yt, bottom=yb, left=yl, right=yr, plane=0), clip.format.bits_per_sample))
+            fixY = plane(depth(core.bore.MultiPlane(upclip, top=yt, bottom=yb, left=yl, right=yr, plane=0), clip.format.bits_per_sample), 0)
     
     if 1 in planes:
-        upclip = clip.resize.Bicubic(width=get_u(clip).width, height=get_u(clip).height, format=vs.YUV444PS)
+        upclip = clip.resize.Bicubic(width=plane(clip, 1).width, height=plane(clip, 1).height, format=vs.YUV444PS)
         upclip = core.std.ShufflePlanes([upclip, depth(clip,32), depth(clip,32)], planes=[0, 1, 2], colorfamily=vs.YUV)
         if singlePlane:
-            fixU = get_u(depth(core.bore.SinglePlane(upclip, top=ut, bottom=ub, left=ul, right=ur, plane=1), clip.format.bits_per_sample))
+            fixU = plane(depth(core.bore.SinglePlane(upclip, top=ut, bottom=ub, left=ul, right=ur, plane=1), clip.format.bits_per_sample), 1)
         else:
-            fixU = get_u(depth(core.bore.MultiPlane(upclip, top=ut, bottom=ub, left=ul, right=ur, plane=1), clip.format.bits_per_sample))
+            fixU = plane(depth(core.bore.MultiPlane(upclip, top=ut, bottom=ub, left=ul, right=ur, plane=1), clip.format.bits_per_sample), 1)
     
     if 2 in planes:
-        upclip = clip.resize.Bicubic(width=get_v(clip).width, height=get_v(clip).height, format=vs.YUV444PS)
+        upclip = clip.resize.Bicubic(width=plane(clip, 2).width, height=plane(clip, 2).height, format=vs.YUV444PS)
         upclip = core.std.ShufflePlanes([upclip, depth(clip,32), depth(clip,32)], planes=[0, 1, 2], colorfamily=vs.YUV)
         if singlePlane:
-            fixV = get_v(depth(core.bore.SinglePlane(upclip, top=vt, bottom=vb, left=vl, right=vr, plane=2), clip.format.bits_per_sample))
+            fixV = plane(depth(core.bore.SinglePlane(upclip, top=vt, bottom=vb, left=vl, right=vr, plane=2), clip.format.bits_per_sample), 2)
         else:
-            fixV = get_v(depth(core.bore.MultiPlane(upclip, top=vt, bottom=vb, left=vl, right=vr, plane=2), clip.format.bits_per_sample))
+            fixV = plane(depth(core.bore.MultiPlane(upclip, top=vt, bottom=vb, left=vl, right=vr, plane=2), clip.format.bits_per_sample), 2)
 
     merged = core.std.ShufflePlanes([fixY, fixU, fixV], planes=[0, 0, 0], colorfamily=vs.YUV)
 
