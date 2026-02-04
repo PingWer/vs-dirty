@@ -454,6 +454,7 @@ def auto_deblock(
     from .admask import luma_mask_ping, luma_mask_man, luma_mask
     from vsdenoise import deblock_qed
     from vstools import depth
+    from dfttest2 import DFTTest
 
     if clip.format.color_family not in [vs.YUV]:
         raise TypeError("AutoDeblock: clip must be YUV color family!")
@@ -463,7 +464,7 @@ def auto_deblock(
     if pre:
         clip = deblock_qed(clip, planes=planes)
 
-    deblock = core.dfttest.DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
+    deblock = DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
     
     if (mask_type == 0):
         lumamask = luma_mask(clip)
