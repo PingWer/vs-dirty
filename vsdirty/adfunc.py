@@ -9,10 +9,10 @@ if not (hasattr(core, 'fmtc') or hasattr(core, 'akarin')):
     raise ImportError("'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
 def mini_BM3D(
-    clip: vs.VideoNode, 
+    clip: vs.VideoNode,
+    planes: PlanesT = [0, 1, 2],
     profile: str = "LC", 
     accel: Optional[str] = None,
-    planes: PlanesT = [0, 1, 2],
     ref: Optional[vs.VideoNode] = None,
     dither: Optional[str] = "error_diffusion",
     fast: Optional[bool] = False,
@@ -22,9 +22,9 @@ def mini_BM3D(
     BM3D mini wrapper.
 
     :param clip:            Clip to process (32bit, if not will be internally converted in 32bit).
+    :param planes:          Which planes to process. Defaults to all planes.
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
     :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu", "auto".
-    :param planes:          Which planes to process. Defaults to all planes.
     :param ref:             Reference clip for BM3D (32bit, if not will be internally converted in 32bit).
     :param dither:          Dithering method for the output clip. If None, no dithering is applied.
     :param fast:            Use CPU+GPU, adds overhead.
@@ -186,7 +186,6 @@ class adenoise:
                                 Accepted denoiser types: "nlm", "cbm3d", "artcnn". If not given, nlm is used.
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (95% accuracy).
     :param chroma_masking:      If True, enables specific chroma masking for U/V planes.
-    :param show_mask:           1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
     :param luma_over_texture:   Multiplier for the luma mask in precision mode. Lower value means more importance to textured areas, higher value means more importance to luma levels.
                                 Accepted values: 0.0-1.0
     :param kwargs_flatmask:     Additional arguments for flatmask creation.
@@ -194,6 +193,7 @@ class adenoise:
                                 sigma1: This value should be decided based on the details level of the clip and how much grain and noise is present. Usually 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain.
                                 texture_strength: Texture strength for mask (0-inf). Values above 1 decrese the strength of the texture in the mask, lower values increase it. The max value is theoretical infinite, but there is no gain after some point.
                                 edges_strength: Edges strength for mask (0-1). Basic multiplier for edges strength.
+    :param show_mask:           1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
 
     :return:                    16bit denoised clip. If show_mask is 1, 2, 3, 4 or 5, returns a tuple (denoised_clip, mask).
     """
@@ -302,9 +302,9 @@ class adenoise:
         chroma_denoise: float | str | tuple[float, str] = [1.0, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
-        show_mask: int = 0,
         luma_over_texture: float = 0.4,
         kwargs_flatmask: Optional[dict] = {},
+        show_mask: int = 0,
         **kwargs
     ) -> tuple[vs.VideoNode, vs.VideoNode]:
         
@@ -434,26 +434,27 @@ class adenoise:
         if show_mask in [1, 2, 3, 4, 5]:
             return adenoise._adaptive_denoiser_tuple(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_denoise, precision, chroma_masking, show_mask, luma_over_texture, kwargs_flatmask)
         return adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_denoise, precision, chroma_masking, luma_over_texture, kwargs_flatmask)
+
 #Ported from fvsfunc 
 def auto_deblock(
     clip: vs.VideoNode,
+    planes: PlanesT = [0, 1, 2],
     sigma: int = 15,
     tbsize: int = 1,
     luma_mask_strength: float = 0.9,
     pre: bool = False,
     mask_type: int = 0,
-    planes: PlanesT = None
 ) -> vs.VideoNode:
     """
     Deblocker 8x8 and other.
 
     :param clip:                Clip to process (YUV 16bit, if not will be internally converted in 16bit).
+    :param planes:              Which planes to process. Defaults to all planes.
     :param sigma:               Sigma value for dfttest deblock.
     :param tbsize:              Length of the temporal dimension (i.e. number of frames).
     :param luma_mask_strength:  Mask strength multiplier. Lower values mean stronger overall deblock.
     :param pre:                 If True, applies a preliminary deblocking with vsdenoise.deblock_qed.
     :param mask_type:           Mask type to use.
-    :param planes:              Which planes to process. Defaults to all planes.
     """
 
     from .admask import luma_mask_ping, luma_mask_man, luma_mask
@@ -484,22 +485,22 @@ def auto_deblock(
 
 def msaa2x(
     clip: vs.VideoNode,
+    planes: PlanesT = 0,
     ref: Optional[vs.VideoNode] = None,
     mask: bool = False,
     sigma: float = 2,
     thr: float = None,
-    planes: PlanesT = 0,
     **kwargs
 ) -> vs.VideoNode:
     """
     Upscales only the edges with AI (ArtCNN DN) and downscales them.
 
     :param clip:            Clip to process (YUV or Grayscale).
+    :param planes:          Which planes to process. Defaults to Y.
     :param ref:             Reference clip used to create the edgemask (should be the original not filtered clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
     :param mask:            If True will return the mask used.
     :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
     :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
-    :param planes:          Which planes to process. Defaults to Y.
     :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN

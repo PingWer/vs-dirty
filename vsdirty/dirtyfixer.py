@@ -11,10 +11,10 @@ if not (hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'bore')):
 
 def bore(
     clip : vs.VideoNode,
+    planes: PlanesT = 0,
     ythickness: List[int] = None,
     uthickness: List[int] = None,
     vthickness: List[int] = None,
-    planes: PlanesT = 0,
     singlePlane = True
 ) -> vs.VideoNode:
     """
@@ -26,12 +26,13 @@ def bore(
 
     Only bore.SinglePlane and bore.MultiPlane are implemented, the other functions will probably never be implemented.
 
-    :param clip:         Input clip (YUV or GRAY, RGB not supported)
+    :param clip:         Input clip (YUV or GRAY, RGB not supported).
+    :param planes:       Which planes to process. Defaults to Y.
     :param ythickness:   List of luma border thicknesses to process. [top, bottom, left, right]. 0 means no processing.
     :param uthickness:   List of chroma U border thicknesses to process. [top, bottom, left, right]. 0 means no processing. if None, uses ythickness or vthickness if is not None.
     :param vthickness:   List of chroma V border thicknesses to process. [top, bottom, left, right]. 0 means no processing. if None, uses ythickness or uthickness if is not None.
-    :param planes:       Plane(s) to process.
     :param singlePlane:  If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane cannot be used with GRAY clips.
+
     :return:             Processed clip with corrected borders, same format as input      
     """
 

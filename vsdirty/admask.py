@@ -63,10 +63,10 @@ def luma_mask (
     return lumamask
 
 def luma_mask_man (
-        clip: vs.VideoNode,
-        t: float = 0.3,
-        s: float = 5,
-        a: float = 0.3,
+    clip: vs.VideoNode,
+    t: float = 0.3,
+    s: float = 5,
+    a: float = 0.3,
 )-> vs.VideoNode :
     """
     Custom luma mask that uses a different approach to calculate the mask (Made By Mhanz).
@@ -79,6 +79,7 @@ def luma_mask_man (
     :param s:               
     :param t:               Threshold that determines what is considered light and what is dark.
     :param a:               
+
     :return:                Luma mask.
     """
     from .adutils import plane
@@ -122,6 +123,7 @@ def luma_mask_ping(
     :param clip:            Clip to process (only the first plane will be processed).
     :param low_amp:         General preamplification value, but more sensitive for values lower than thr.
     :param thr:             Threshold that determines what is considered bright and what is dark.
+
     :return:                Luma mask.
     """
 
@@ -157,7 +159,7 @@ def unbloat_retinex(
     lower_thr: float = 0.001,
     upper_thr: float = 0.005,
     fast: bool = True
-    ) -> vs.VideoNode:
+) -> vs.VideoNode:
     """
     Multi-Scale Retinex (MSR) optimized for edge enhancement and dynamic range compression.
     
@@ -174,9 +176,8 @@ def unbloat_retinex(
                         Used to ignore bright outliers during final normalization.
     :param fast:        Enable downscaling optimization for large sigmas. Default: True.
                         Significantly faster with minimal quality loss.
+
     :return:            Processed Float32 Grayscale clip with enhanced local contrast.
-    
-    :raises ValueError: If input clip is not Grayscale.
     """
     from vstools import depth
     from vsrgtools import gauss_blur
@@ -286,7 +287,7 @@ def advanced_edgemask(
     """
     from vstools import get_y, depth
     from vsdenoise import nl_means
-    from vsmasktools import Morpho, Kirsch
+    from vsmasktools import Kirsch
     from .adfunc import mini_BM3D
     from .adutils import scale_binary_value
     
@@ -393,6 +394,7 @@ def hd_flatmask(
     :param blur:                Blur amount for mask (0-1). Default: 2.
     :param expand:              Expand amount for mask (0-1). Higher value increases the size of the texture in the mask. Default: 3.
     :param kwargs:              Additional arguments for Retinex.
+
     :return:                    Edge mask (Gray clip) where dark values are texture and edges, bright values are flat areas.
     """
 

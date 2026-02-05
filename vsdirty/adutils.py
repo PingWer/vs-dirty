@@ -4,22 +4,23 @@ from typing import SupportsIndex, Optional, List, Tuple, Union
 def plane(
     clip: vs.VideoNode,
     index: SupportsIndex
-    ) -> vs.VideoNode:
+) -> vs.VideoNode:
 	"""
 	Returns a plane from the given clip at the specified index.
 
 	:param clip: The input video clip.
 	:param index: The index of the plane to return.
+
 	:return: A new video clip containing only the specified plane.
 	"""
 	return vs.core.std.ShufflePlanes(clip, index.__index__(), vs.GRAY)
 
 def scale_binary_value(
-        clip: vs.VideoNode,
-        value: float,
-        return_int: bool = True,
-        bit: Optional[int] = None,
-        )-> float:
+    clip: vs.VideoNode,
+    value: float,
+    return_int: bool = True,
+    bit: Optional[int] = None,
+)-> float:
     """
     Scales a value based on the bit depth of the clip.
 
@@ -27,6 +28,7 @@ def scale_binary_value(
     :param value:        Value to scale (0.0 - 1.0).
     :param return_int:   Whether to return an integer value. Default is True (will be ignore if the input clip is Float).
     :param bit:          Bit depth of the clip. If None, the bit depth of the clip will be used. Default is None.
+
     :return:             Scaled value.
     """
     if bit is None and clip is not None:
