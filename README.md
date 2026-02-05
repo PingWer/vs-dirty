@@ -38,11 +38,12 @@ This package relies on several external VapourSynth plugins. Ensure these are in
 Designed specifically for film content, this intensive adaptive denoiser removes noise while carefully preserving the underlying grain structure and fine textures, ensuring the image retains its organic look without becoming "plastic" or over-smoothed. It combines `mc_degrain` (luma), `NLMeans`/`CBM3D` (chroma), and `BM3D` (luma), all modulated by adaptive masking.
 
 **Presets:**
-- `scan65mm` (Very Light)
-- `scan35mm` (Light)
-- `scan16mm` (Medium - Default)
-- `scan8mm` (Heavy)
+- `scan65mm` (Light)
+- `scan35mm` (Medium)
+- `scan16mm` (Heavy)
+- `scan8mm` (Very Heavy)
 - `digital` (Optimized for digital sources)
+- `default` (Generic)
 
 **Usage:**
 
@@ -55,9 +56,6 @@ clip = ... # your video source
 
 # Apply default adaptive denoising
 denoised = adenoise.scan16mm(clip)
-
-# Custom parameters
-denoised_custom = adenoise.scan35mm(clip, sigma=2, thsad=250)
 ```
 
 ### `bore`
