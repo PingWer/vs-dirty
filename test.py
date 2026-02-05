@@ -48,8 +48,8 @@ class Test(unittest.TestCase):
                 adenoise.digital(video)
             with self.subTest(video=video.format.name):
                 adenoise.default(video)
-                adenoise.default(video, chroma_masking=True)
-                adenoise.default(video, chroma_denoise="cbm3d")
+                adenoise.default(video, chroma_masking=True, chroma_denoise=2.0)
+                adenoise.default(video, chroma_denoise=[1.0, "cbm3d"])
                 adenoise.default(video, chroma_denoise="artcnn")
 
     def test_auto_deblock(self):
