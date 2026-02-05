@@ -48,53 +48,53 @@ Designed specifically for film content, this intensive adaptive denoiser removes
 **Parameters:**
 
 ```python
-adenoise.default(clip: vs.VideoNode, 
-    thsad: int = 500, 
-    tr: int = 2, 
-    sigma: float = 6, 
-    luma_mask_weaken: float = 0.75, 
-    luma_mask_thr: float = 0.196, 
-    chroma_denoise: float | tuple[float, str] = [1.0, "nlm"], 
-    precision: bool = True, 
-    chroma_masking: bool = False, 
-    show_mask: int = 0, 
-    luma_over_texture: float = 0.4, 
-    kwargs_flatmask: dict = {})
+adenoise.default(
+  clip: vs.VideoNode, 
+  thsad: int = 500, 
+  tr: int = 2, 
+  sigma: float = 6, 
+  luma_mask_weaken: float = 0.75, 
+  luma_mask_thr: float = 0.196, 
+  chroma_denoise: float | str | tuple[float, str] = [1.0, "nlm"], 
+  precision: bool = True, 
+  chroma_masking: bool = False, 
+  luma_over_texture: float = 0.4, 
+  kwargs_flatmask: dict = {},
+  show_mask: int = 0
+)
 ```
 
-- `clip`: Clip to process (YUV or GRAY 16bit, if not will be internally converted in 16bit).
-- `thsad`: Thsad for mc_degrain (luma denoise strength and chroma ref).
-                                Recommended values: 300-800
-- `tr`: Temporal radius for temporal consistency across al the filter involved.
-                                Recommended values: 2-3 (1 means no temporal denoise).
+- `clip`: Clip to process (YUV or GRAY).
+- `thsad`: Luma and chroma ref denoise strength.
+  Recommended values: 300-800
+- `tr`: Temporal radius for temporal consistency.
+  Recommended values: 2-3 (1 means no temporal denoise).
 - `sigma`: Sigma for BM3D (luma denoise strength).
-                                Recommended values: 1-5. 
+  Recommended values: 2-10. 
 - `luma_mask_weaken`: Controls how much dark spots should be denoised. Lower values mean stronger overall denoise.
-                                Recommended values: 0.6-0.9
+  Recommended values: 0.6-0.9
 - `luma_mask_thr`: Threshold that determines what is considered bright and what is dark in the luma mask.
-                                Recommended values: 0.15-0.25
+  Recommended values: 0.15-0.25
 - `chroma_denoise`: Denoiser strength and type for chroma. NLMeans/CBM3D/ArtCNN.
-                                Reccomended strength values: 0.5-2. If not given, 1.0 is used (or none for ArtCNN).
-                                Accepted denoiser types: "nlm", "cbm3d", "artcnn". If not given, nlm is used.
-- `precision`: If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (95% accuracy).
+  Reccomended strength values: 0.5-2.
+  Accepted denoiser types: "nlm", "cbm3d", "artcnn".
+- `precision`: If True, a flat mask is created to enhance the denoise strenght avoiding textured area.
 - `chroma_masking`: If True, enables specific chroma masking for U/V planes.
-- `show_mask`: 1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
-- `luma_over_texture`: Multiplier for the luma mask in precision mode. Lower value means more importance to textured areas, higher value means more importance to luma levels.
-                                Accepted values: 0.0-1.0
-- `kwargs_flatmask`: Additional arguments for flatmask creation.
-  dict values (check `hd_flatmask`'s docstring for more info):
-  - `sigma1`: This value should be decided based on the details level of the clip and how much grain and noise is present. Usually 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain.
-  - `texture_strength`: Texture strength for mask (0-inf). Values above 1 decrese the strength of the texture in the mask, lower values increase it. The max value is theoretical infinite, but there is no gain after some point.
+- `luma_over_texture`: Lower value means more importance to textured areas, higher value means more importance to luma levels.
+  Accepted values: 0.0-1.0
+- `kwargs_flatmask`: Additional arguments. dict values (check `hd_flatmask`'s docstring for more info):
+  - `sigma1`: This value should be decided based on the details level of the clip and how much grain and noise is present. Recommended values: 1-5
+  - `texture_strength`: Texture strength for mask (0-inf). Values above 1 decrease the strength of the texture in the mask.
   - `edges_strength`: Edges strength for mask (0-1). Basic multiplier for edges strength.
+- `show_mask`: 1 = First luma mask, 2 = Textured luma mask, 3 = Complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True).
 
-- `return`: 16bit denoised clip. If show_mask is 1, 2, 3, 4 or 5, returns a tuple (denoised_clip, mask).
+- `return`: 16bit denoised clip. If show_mask is set, returns a tuple (denoised_clip, mask).
 
 **Usage:**
 
 ```python
 from vsdirty import adenoise
 
-# Apply default adaptive denoising
 denoised = adenoise.scan16mm(clip)
 ```
 
