@@ -136,13 +136,36 @@ clean = bore(clip, ythickness=[1, 1, 2, 2])
 
 ## `msaa2x`
 
-An antialiaser based on ArtCNN that targets specific edges to reduce aliasing without blurring textures.
+An antialiaser based on ArtCNN that targets edges.
+
+**Parameters:**
 
 ```python
-from vsdirty import adfunc
+def msaa2x(
+    clip: vs.VideoNode,
+    ref: Optional[vs.VideoNode] = None,
+    mask: bool = False,
+    sigma: float = 2,
+    thr: float = None,
+    planes: PlanesT = 0,
+    **kwargs
+)
+```
 
-# Apply antialiasing
-aa_clip = adfunc.msaa2x(clip)
+- `clip`: Clip to process (YUV or GRAY).
+- `ref`: Reference clip used to create the edgemask (clean and denoised).
+- `mask`: If True will return the mask used.
+- `sigma`: Sigma used for edge fixing during antialiasing only if ref is None.
+- `thr`: Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
+- `planes`: Which planes to process. Defaults to Y.
+- `kwargs`: Accepts advanced_edgemask arguments.
+
+**Usage:**
+
+```python
+from vsdirty import msaa2x
+
+aa_clip = msaa2x(clip)
 ```
 
 ## `advanced_edgemask`
