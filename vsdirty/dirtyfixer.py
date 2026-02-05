@@ -19,7 +19,7 @@ def bore(
         **kwargs
         ) -> vs.VideoNode:
     """
-    Apply bore filter to clip edges to remove dirty lines.
+    Apply bore filter to clip's edges to remove dirty lines.
     
     Processes selected planes at their native resolution to avoid 
     unnecessary scaling artifacts. Uses full resolution for luma,
