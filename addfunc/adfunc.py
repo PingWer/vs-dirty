@@ -220,9 +220,10 @@ class adenoise:
         **kwargs
     ) -> vs.VideoNode:
         
-        from vstools import get_y, get_u, get_v, depth
+        from vstools import get_u, get_v, depth
         from vsdenoise import Prefilter, mc_degrain, nl_means, MVTools, SearchMode, MotionMode, SADMode, MVTools, SADMode, MotionMode
         from .admask import luma_mask_ping, luma_mask_man, hd_flatmask
+        from .adutils import plane
 
         core = vs.core
 
@@ -252,8 +253,8 @@ class adenoise:
             [darken_luma_mask, flatmask],
             f"x {luma_penalty} * y {texture_penalty} * +")
         
-        denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr, profile="HIGH", planes=0)
-        luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) #denoise applied to darker areas
+        denoised = mini_BM3D(plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
+        y_denoised = core.std.MaskedMerge(denoised, plane(clip, 0), darken_luma_mask) #denoise applied to darker areas
 
         #Chroma denoise
         
@@ -267,10 +268,6 @@ class adenoise:
             if chroma_denoise == "artcnn":
                 from vsscale import ArtCNN
                 chroma_denoised = ArtCNN.R8F64_JPEG420().scale(clip)
-        
-
-        v_mask = None # Avoid UnboundLocalError
-        u_mask = None
 
         if (chroma_masking and chroma_strength>0) and clip.format.color_family == vs.YUV:
             v=get_v(clip)
@@ -282,9 +279,9 @@ class adenoise:
             chroma_denoised = core.std.ShufflePlanes(clips=[chroma_denoised, u_masked, v_masked], planes=[0,0,0], colorfamily=vs.YUV)
         
         if clip.format.color_family == vs.GRAY:
-            final = luma
+            final = y_denoised
         else:
-            final = core.std.ShufflePlanes(clips=[luma, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
+            final = core.std.ShufflePlanes(clips=[y_denoised, get_u(chroma_denoised), get_v(chroma_denoised)], planes=[0,0,0], colorfamily=vs.YUV)
         return final
     
     @classmethod
@@ -352,8 +349,8 @@ class adenoise:
         if show_mask == 3:
             selected_mask = darken_luma_mask
         
-        denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr, profile="HIGH", planes=0)
-        luma = get_y(core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask, planes=0)) #denoise applied to darker areas
+        denoised = mini_BM3D(get_y(degrain), sigma=sigma, radius=tr, profile="HIGH")
+        luma = core.std.MaskedMerge(denoised, get_y(clip), darken_luma_mask) #denoise applied to darker areas
 
         #Chroma denoise
         

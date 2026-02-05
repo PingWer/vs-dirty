@@ -48,6 +48,7 @@ class Test(unittest.TestCase):
                 adenoise.digital(video)
             with self.subTest(video=video.format.name):
                 adenoise.default(video)
+                adenoise.default(video, chroma_masking=True)
                 adenoise.default(video, chroma_denoise="cbm3d")
                 adenoise.default(video, chroma_denoise="artcnn")
 
