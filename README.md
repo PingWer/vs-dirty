@@ -24,7 +24,7 @@ This package relies on several external VapourSynth plugins. Ensure these are in
 
 | Plugin | URL |
 | :--- | :--- |
-| **fmtc** | [GitHub](https://github.com/EleonoreMizo/fmtconv) |
+| **fmtc** | [GitLab](https://gitlab.com/EleonoreMizo/fmtconv/) |
 | **akarin** | [GitHub](https://github.com/AkarinVS/vapoursynth-plugin) |
 | **cas** | [GitHub](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CAS) |
 | **bore** | [GitHub](https://github.com/opusgang/libbore) |
