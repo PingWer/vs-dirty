@@ -10,14 +10,13 @@ if not (hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'bore')):
     raise ImportError("'fmtc' and 'libbore' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
 def bore(
-        clip : vs.VideoNode,
-        ythickness: List[int] = None,
-        uthickness: List[int] = None,
-        vthickness: List[int] = None,
-        planes: PlanesT = 0,
-        singlePlane = True,
-        **kwargs
-        ) -> vs.VideoNode:
+    clip : vs.VideoNode,
+    ythickness: List[int] = None,
+    uthickness: List[int] = None,
+    vthickness: List[int] = None,
+    planes: PlanesT = 0,
+    singlePlane = True
+) -> vs.VideoNode:
     """
     Apply bore filter to clip's edges to remove dirty lines.
     

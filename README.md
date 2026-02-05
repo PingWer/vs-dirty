@@ -2,6 +2,8 @@
 
 A collection of VapourSynth wrappers and utility functions focused on advanced denoising, masking, and edge fixing.
 
+Follow the docstring for more information about the parameters.
+
 ## Installation
 
 You can install `vsdirty` via pip:
@@ -98,10 +100,32 @@ from vsdirty import adenoise
 denoised = adenoise.scan16mm(clip)
 ```
 
-
 ## `bore`
 
 A powerful edge cleaner (dirty line fixer) that processes borders at their native resolution to avoid scaling artifacts.
+
+**Parameters:**
+
+```python
+def bore(
+  clip : vs.VideoNode,
+  ythickness: List[int] = None,
+  uthickness: List[int] = None,
+  vthickness: List[int] = None,
+  planes: PlanesT = 0,
+  singlePlane = True
+)
+```
+
+- `clip`: Input clip (YUV or GRAY).
+- `ythickness`: Luma border thicknesses to process. [top, bottom, left, right].
+- `uthickness`: Chroma U border thicknesses to process. [top, bottom, left, right].
+- `vthickness`: Chroma V border thicknesses to process. [top, bottom, left, right]. If None, uses ythickness or uthickness.
+- `planes`: Plane(s) to process.
+- `singlePlane`: If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane works only on 444 clips.
+- `return`: Processed clip with corrected borders, same format as input.
+
+**Usage:**
 
 ```python
 from vsdirty import bore
