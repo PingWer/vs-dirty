@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vsdirty"
+version = "0.1.0"
+description = "VapourSynth wrappers for denoising, masking and edge fixing"
+readme = "README.md"
+authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]
+requires-python = ">=3.10"
+dependencies = [
+    "vapoursynth>=70",
+    "vstools",
+    "vsjetpack==1.1.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/r74mi/vs-dirty"
+
+[tool.setuptools.packages.find]
+include = ["vsdirty*"]
