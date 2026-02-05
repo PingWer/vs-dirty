@@ -328,9 +328,7 @@ class adenoise:
         if "is_digital" not in kwargs:
             mvtools = MVTools(clip)
             vectors = mvtools.analyze(blksize=16, tr=tr, overlap=8, lsad=300, search=SearchMode.UMH, truemotion=MotionMode.SAD, dct=SADMode.MIXED_SATD_DCT)
-            mfilter = mini_BM3D(clip=plane(clip, 0), sigma=sigma*1.25, radius=tr, profile="LC", planes=0)
-            if clip.format.color_family == vs.YUV:
-                mfilter = core.std.ShufflePlanes(clips=[mfilter, get_u(clip), get_v(clip)], planes=[0,0,0], colorfamily=vs.YUV)
+            mfilter = mini_BM3D(clip, sigma=sigma*1.25, radius=tr, profile="LC", planes=0)
             degrain = mc_degrain(clip, prefilter=Prefilter.DFTTEST, blksize=8, mfilter=mfilter, thsad=thsad, vectors=vectors, tr=tr, limit=1)
         else:
             degrain = clip
