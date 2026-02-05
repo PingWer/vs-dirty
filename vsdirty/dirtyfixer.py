@@ -2,7 +2,7 @@ import vapoursynth as vs
 from typing import List
 from vstools import PlanesT
 from vstools import depth
-from addfunc.adutils import plane
+from .adutils import plane
 
 core = vs.core
 

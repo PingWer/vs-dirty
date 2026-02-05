@@ -32,7 +32,7 @@ def mini_BM3D(
     :return:                Denoised clip.
     """
     from vstools import depth
-    from addfunc.adutils import plane
+    from .adutils import plane
     
     def _bm3d (
         clip: vs.VideoNode,
@@ -504,8 +504,8 @@ def msaa2x(
     """
     from vsscale import ArtCNN
     from vstools import depth
-    from addfunc.admask import advanced_edgemask
-    from addfunc.adutils import scale_binary_value, plane
+    from .admask import advanced_edgemask
+    from .adutils import scale_binary_value, plane
 
     if isinstance(planes, int):
         planes = [planes]
@@ -518,7 +518,7 @@ def msaa2x(
     clip = depth(clip, 16, dither_type="none")
 
     if ref is None:
-        ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise="cbm3d", chroma_strength=(0 if (1 in planes or 2 in planes) else 1))
+        ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise=[(0 if (1 in planes or 2 in planes) else 1), "cbm3d"])
             
     if len(planes) == 1:
         edgemask = advanced_edgemask(plane(ref, planes[0]), **kwargs)
