@@ -14,7 +14,7 @@ class Test(unittest.TestCase):
 
     def test_mini_BM3D(self):
         """ Test mini_BM3D with and without reference clip """
-        from addfunc.adfunc import mini_BM3D
+        from vsdirty.adfunc import mini_BM3D
 
         for video in self.videos:
             with self.subTest(video=video.format.name):
@@ -32,7 +32,7 @@ class Test(unittest.TestCase):
 
     def test_adenoise(self):
         """ Test adenoise with all defaults """
-        from addfunc.adfunc import adenoise
+        from vsdirty.adfunc import adenoise
 
         videos = self.videos[0:4]  # RGB not supported
         for video in videos:
@@ -54,7 +54,7 @@ class Test(unittest.TestCase):
 
     def test_auto_deblock(self):
         """ Test auto_deblock """
-        from addfunc.adfunc import auto_deblock
+        from vsdirty.adfunc import auto_deblock
 
         videos = self.videos[1:4]  # Grayscale and RGB not supported
         for video in videos:
@@ -70,7 +70,7 @@ class Test(unittest.TestCase):
 
     def test_msaa2x(self):
         """ Test msaa2x """
-        from addfunc.adfunc import msaa2x
+        from vsdirty.adfunc import msaa2x
 
         videos = self.videos[0:4]
         for video in videos:
@@ -85,7 +85,7 @@ class Test(unittest.TestCase):
 
     def test_luma_masks(self):
         """ Test luma-based masks """
-        from addfunc.admask import luma_mask, luma_mask_man, luma_mask_ping
+        from vsdirty.admask import luma_mask, luma_mask_man, luma_mask_ping
 
         for video in self.videos:
             with self.subTest(video=video.format.name):
@@ -97,7 +97,7 @@ class Test(unittest.TestCase):
 
     def test_edgemasks(self):
         """ Test edgemasks """
-        from addfunc.admask import advanced_edgemask
+        from vsdirty.admask import advanced_edgemask
 
         videos = self.videos[0:4]
         for video in videos:
@@ -106,7 +106,7 @@ class Test(unittest.TestCase):
 
     def test_retinex(self):
         """ Test retinex """
-        from addfunc.admask import unbloat_retinex
+        from vsdirty.admask import unbloat_retinex
 
         videos = self.videos[0]
         for video in videos:
@@ -115,7 +115,7 @@ class Test(unittest.TestCase):
         
     def test_hd_flatmask(self):
         """ Test hd_flatmask """
-        from addfunc.admask import hd_flatmask
+        from vsdirty.admask import hd_flatmask
 
         videos = self.videos[0:4]
         for video in videos:

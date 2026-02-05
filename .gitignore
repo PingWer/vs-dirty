@@ -13,4 +13,5 @@ __pycache__
 *.264
 *.yuv
 dfttest2.py
+.vscode
 vsmlrt.py
