@@ -255,10 +255,12 @@ class adenoise:
             elif luma_over_texture == 1:
                 raise ValueError("don't use precision mode if luma_over_texture is 1")
             
-            darken_luma_mask = core.akarin.Expr([darken_luma_mask, flatmask], f"x {luma_over_texture} * y {abs(luma_over_texture-1)} * +")
-        
+            final_mask = core.akarin.Expr([darken_luma_mask, flatmask], f"x {luma_over_texture} * y {abs(luma_over_texture-1)} * +")
+        else:
+            final_mask = darken_luma_mask
+
         denoised = mini_BM3D(plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
-        y_denoised = core.std.MaskedMerge(denoised, plane(clip, 0), darken_luma_mask) #denoise applied to darker areas
+        y_denoised = core.std.MaskedMerge(denoised, plane(clip, 0), final_mask) #denoise applied to darker areas
 
         if clip.format.color_family == vs.GRAY:
             return y_denoised
@@ -353,13 +355,15 @@ class adenoise:
                 raise ValueError("luma_over_texture must be greater than 0")
             elif luma_over_texture == 1:
                 raise ValueError("don't use precision mode if luma_over_texture is 1")
-            darken_luma_mask = core.akarin.Expr([darken_luma_mask, flatmask], f"x {luma_over_texture} * y {abs(luma_over_texture-1)} * +")
-            
+            final_mask = core.akarin.Expr([darken_luma_mask, flatmask], f"x {luma_over_texture} * y {abs(luma_over_texture-1)} * +")
+        else:
+            final_mask = darken_luma_mask
+        
         if show_mask == 3:
-            selected_mask = darken_luma_mask
+            selected_mask = final_mask
         
         denoised = mini_BM3D(plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
-        y_denoised = core.std.MaskedMerge(denoised, plane(clip, 0), darken_luma_mask) #denoise applied to darker areas
+        y_denoised = core.std.MaskedMerge(denoised, plane(clip, 0), final_mask) #denoise applied to darker areas
 
         #Chroma denoise
         if chroma_denoise[0] <= 0:
