@@ -426,8 +426,8 @@ def hd_flatmask(
         else:
             ref_y = plane(ref, 0)
             
-        if ref_y.format.bits_per_sample != 16:
-            ref_y = depth(ref_y, 16)
+        ref_y = depth(ref_y, 16)
+        
         clipd = mini_BM3D(luma, sigma=sigma1, ref=ref_y, radius=1, profile="HIGH", planes=0)
     else:
         clipd = mini_BM3D(luma, sigma=sigma1, radius=1, profile="HIGH", planes=0)
