@@ -33,6 +33,16 @@ def mini_BM3D(
     """
     from vstools import depth
     from .adutils import plane
+
+    def _conversion_to_444(clip: vs.VideoNode) -> vs.VideoNode:
+        if "444" not in str(clip.format.name):
+            y = plane(clip, 0)
+            u = plane(clip, 1)
+            v = plane(clip, 2)
+            y_downscaled = y.resize.Spline36(u.width, u.height)
+            return core.std.ShufflePlanes([y_downscaled, u, v], planes=[0, 0, 0], colorfamily=vs.YUV)
+        else:
+            return clip
     
     def _bm3d (
         clip: vs.VideoNode,
@@ -137,23 +147,21 @@ def mini_BM3D(
         y_denoised = _bm3d(y, accel, ref=y_ref, **kwargs) if 0 in planes else y
 
         if 1 in planes or 2 in planes:
-            y_downscaled = y.resize.Spline36(u.width, u.height)
 
-            ref_444 = None
             if refS is not None and refS.format.num_planes == 3:
-                u_ref = plane(refS, 1); v_ref = plane(refS, 2)
-                y_ref_downscaled = y_ref.resize.Spline36(u.width, u.height)
-                ref_444 = core.std.ShufflePlanes([y_ref_downscaled, u_ref, v_ref], planes=[0, 0, 0], colorfamily=clip.format.color_family)
+                ref_444 = _conversion_to_444(refS)
             elif refS is not None and refS.format.num_planes == 1:
                 ref_444 = y_ref
+            else:
+                ref_444 = None
 
-            clip_444 = core.std.ShufflePlanes([y_downscaled, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
-            clip_444 = _bm3d(clip_444, accel, ref=ref_444, chroma=True, **kwargs) if ref_444 is not None else _bm3d(clip_444, accel, chroma=True, **kwargs)
+            clip_444 = _conversion_to_444(clipS)
+            clip_444_denoised = _bm3d(clip_444, accel, ref=ref_444, chroma=True, **kwargs)
 
             if 1 in planes:
-                u = plane(clip_444, 1)
+                u = plane(clip_444_denoised, 1)
             if 2 in planes:
-                v = plane(clip_444, 2)
+                v = plane(clip_444_denoised, 2)
 
         dclip = core.std.ShufflePlanes([y_denoised, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family)
 
