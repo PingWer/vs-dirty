@@ -285,11 +285,11 @@ def advanced_edgemask(
     :param kwargs:              Additional arguments for Retinex.
     :return:                    Edge mask (Gray clip).
     """
-    from vstools import get_y, depth
+    from vstools import depth
     from vsdenoise import nl_means
     from vsmasktools import Kirsch
     from .adfunc import mini_BM3D
-    from .adutils import scale_binary_value
+    from .adutils import scale_binary_value, plane
     
     core = vs.core
     
@@ -299,7 +299,7 @@ def advanced_edgemask(
     if clip.format.color_family == vs.GRAY:
         luma = clip
     else:
-        luma = get_y(clip)
+        luma = plane(clip, 0)
     
     luma = depth(luma, 16)
 
@@ -310,7 +310,7 @@ def advanced_edgemask(
         if ref.format.color_family == vs.GRAY:
             ref_y = ref
         else:
-            ref_y = get_y(ref)
+            ref_y = plane(ref, 0)
             
         if ref_y.format.bits_per_sample != 16:
             ref_y = depth(ref_y, 16)
@@ -332,25 +332,25 @@ def advanced_edgemask(
         clipd = core.cas.CAS(clipd, sharpness=sharpness, opt=0, planes=0)
     
     preSobel = core.akarin.Expr([
-        get_y(msrcp).std.Sobel(),
-        get_y(clipd).std.Sobel(),
+        plane(msrcp, 0).std.Sobel(),
+        plane(clipd, 0).std.Sobel(),
     ], "x y max")
     
     prePrewitt = core.akarin.Expr([
-        get_y(msrcp).std.Prewitt(),
-        get_y(clipd).std.Prewitt(),
+        plane(msrcp, 0).std.Prewitt(),
+        plane(clipd, 0).std.Prewitt(),
     ], "x y max")
     
     edges = core.akarin.Expr([preSobel, prePrewitt], "x y +")
     
     tcanny = core.akarin.Expr([
-        core.tcanny.TCanny(get_y(msrcp), mode=1, sigma=0),
-        core.tcanny.TCanny(get_y(clipd), mode=1, sigma=0)
+        core.tcanny.TCanny(plane(msrcp, 0), mode=1, sigma=0),
+        core.tcanny.TCanny(plane(clipd, 0), mode=1, sigma=0)
     ], "x y max")
     
     kirco = core.akarin.Expr([
-        Kirsch.edgemask(get_y(msrcp), clamp=False, lthr=kirsch_thr),
-        Kirsch.edgemask(get_y(clipd), clamp=False, lthr=kirsch_thr)
+        Kirsch.edgemask(plane(msrcp, 0), clamp=False, lthr=kirsch_thr),
+        Kirsch.edgemask(plane(clipd, 0), clamp=False, lthr=kirsch_thr)
     ], "x y max")
     
     edge_thr_scaled = scale_binary_value(edges, edge_thr, return_int=True)
