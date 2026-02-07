@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vsdirty"
-version = "0.1.1"
+version = "0.1.2"
 description = "VapourSynth wrappers for denoising, masking and edge fixing"
 readme = "README.md"
 authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]

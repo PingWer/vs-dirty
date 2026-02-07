@@ -274,12 +274,13 @@ class adenoise:
         # Chroma denoise
         if isinstance(chroma_denoise, str):
             chroma_denoise = [1.0, chroma_denoise]
-        if (isinstance(chroma_denoise, float) and chroma_denoise <= 0) or (isinstance(chroma_denoise, tuple) and chroma_denoise[0] <= 0):
+        elif isinstance(chroma_denoise, float):
+            chroma_denoise = [chroma_denoise, "nlm"]
+        
+        if chroma_denoise[0] <= 0:
             chroma_denoised = clip
         else:
-            if isinstance(chroma_denoise, float):
-                chroma_denoised = nl_means(clip, h=chroma_denoise, tr=tr, ref=degrain, planes=[1,2])
-            elif "nlm" in chroma_denoise:
+            if "nlm" in chroma_denoise:
                 chroma_denoised = nl_means(clip, h=chroma_denoise[0], tr=tr, ref=degrain, planes=[1,2])
             elif "cbm3d" in chroma_denoise:
                 chroma_denoised = mini_BM3D(clip, sigma=chroma_denoise[0], radius=tr, ref=degrain, planes=[1,2])
@@ -372,6 +373,11 @@ class adenoise:
         y_denoised = core.std.MaskedMerge(denoised, plane(clip, 0), final_mask) #denoise applied to darker areas
 
         #Chroma denoise
+        if isinstance(chroma_denoise, str):
+            chroma_denoise = [1.0, chroma_denoise]
+        elif isinstance(chroma_denoise, float):
+            chroma_denoise = [chroma_denoise, "nlm"]
+        
         if chroma_denoise[0] <= 0:
             chroma_denoised = clip
         else:
