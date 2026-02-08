@@ -6,11 +6,6 @@ core = vs.core
 if not (hasattr(vs.core, 'cas') or hasattr(vs.core, 'fmtc') or hasattr(vs.core, 'akarin')):
     raise ImportError("'cas', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder.")
 
-
-def _get_stdev(avg: float, sq_avg: float) -> float:
-    return abs(sq_avg - avg ** 2) ** 0.5
-
-#fatta dalla IA e anche male, ma fa il suo la cambierò in futuro forse
 def _soft_threshold(clip: vs.VideoNode, thr: float, steepness: float = 20.0) -> vs.VideoNode:
     """
     Applies a soft threshold to the clip.
@@ -35,15 +30,6 @@ def _soft_threshold(clip: vs.VideoNode, thr: float, steepness: float = 20.0) -> 
         f"{diff_expr} {steepness} * exp x * "
         f"?"
     )
-
-def auto_thr_high(stddev):
-    if stddev >0.900:
-        stdev_min, stdev_max = 0.800, 1.000
-    else:
-        stdev_min, stdev_max = 0.400, 1.000
-    thr_high_min, thr_high_max = 0.005, 1.000
-    norm = min(max((stddev - stdev_min) / (stdev_max - stdev_min), 0.000), 1.000)
-    return (thr_high_max * ((thr_high_min / thr_high_max) ** norm))
 
 def luma_mask (
         clip: vs.VideoNode,
@@ -92,15 +78,11 @@ def luma_mask_man (
 
     lumamask = core.std.Expr(
         [luma],
-        f"x "                  # Mettiamo x sullo stack per la moltiplicazione finale
-        f"{normx} {t} < "            # x < b ?
-        # - Ramo TRUE → f(x):
+        f"x "
+        f"{normx} {t} < "
         f"{normx} {t} - {normx} {t} - 2 pow {s} * {a} + {f} pow / 1 + "
-        # - Ramo FALSE → h(x):
         f"{normx} {t} - {normx} {t} - 2 pow {s} * 5 * {a} + {f} pow / 1 + "
-        # - Operatore ternario:
         f"? "
-        # - moltiplica per x:
         f"*"
     )
 
@@ -265,6 +247,7 @@ def advanced_edgemask(
     kirsch_weight: float = 0.5,
     kirsch_thr: float = 0.35,
     edge_thr: float = 0.02,
+    expand: int = 0,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -282,12 +265,13 @@ def advanced_edgemask(
     :param kirsch_weight:       Weight for Kirsch edges in final blend (0-1). Default: 0.7.
     :param kirsch_thr:          Kirsch threshold. Default: 0.25.
     :param edge_thr:            Threshold for edge combination logic (0-1). Default: 0.02.
+    :param expand:              Expand the mask by a given number of pixels. Default: 0.
     :param kwargs:              Additional arguments for Retinex.
     :return:                    Edge mask (Gray clip).
     """
     from vstools import depth
     from vsdenoise import nl_means
-    from vsmasktools import Kirsch
+    from vsmasktools import Kirsch, Morpho, XxpandMode
     from .adfunc import mini_BM3D
     from .adutils import scale_binary_value, plane
     
@@ -359,7 +343,7 @@ def advanced_edgemask(
         f"x y + {edge_thr_scaled} < x y + z {kirsch_weight} * + x y + ?"
     )
 
-    return mask
+    return mask if expand == 0 else Morpho.expand(mask, mode=XxpandMode.ELLIPSE, sw=expand, sh=expand)
 
 
 def hd_flatmask(

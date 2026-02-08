@@ -39,7 +39,7 @@ def mini_BM3D(
             y = plane(clip, 0)
             u = plane(clip, 1)
             v = plane(clip, 2)
-            y_downscaled = y.resize.Spline36(u.width, u.height)
+            y_downscaled = y.resize.Bilinear(u.width, u.height)
             return core.std.ShufflePlanes([y_downscaled, u, v], planes=[0, 0, 0], colorfamily=vs.YUV)
         else:
             return clip
@@ -204,7 +204,7 @@ class adenoise:
                                 Accepted values: 0.0-1.0
     :param kwargs_flatmask:     Additional arguments for flatmask creation.
                                 dict values (check hd_flatmask for more info):
-                                sigma1: This value should be decided based on the details level of the clip and how much grain and noise is present. Usually 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain.
+                                sigma1: This value should be decided based on the details level of the clip and how much grain and noise is present. Usually 1 for really textured clip, 2-3 for a normal clip, 4-5 for a clip with strong noise or grain. By default sigma1 is sigma+1.
                                 texture_strength: Texture strength for mask (0-inf). Values above 1 decrese the strength of the texture in the mask, lower values increase it. The max value is theoretical infinite, but there is no gain after some point.
                                 edges_strength: Edges strength for mask (0-1). Basic multiplier for edges strength.
     :param show_mask:           1 = Show the first luma mask, 2 = Show the textured luma mask, 3 = Show the complete luma mask, 4 = Show the Chroma U Plane mask (if chroma_masking = True), 5 = Show the Chroma V Plane mask (if chroma_masking = True). Any other value returns the denoised clip.
@@ -263,8 +263,8 @@ class adenoise:
                 raise ValueError("don't use precision mode if luma_over_texture is 1")
         if precision:
             flatmask_defaults = {
-                "sigma1": 3,
-                "texture_strength": 2,
+                "sigma1": sigma+1,
+                "texture_strength": 1,
                 "edges_strength": 0.05
             }
             flatmask = hd_flatmask(degrain, **(flatmask_defaults | kwargs_flatmask))
@@ -354,8 +354,8 @@ class adenoise:
         return denoised[0]
     
     @staticmethod
-    def digital (clip: vs.VideoNode, thsad: int = 300, tr: int = 2, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_denoise: float | tuple[float, str] = [1.0, "nlm"], precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, luma_over_texture: float = 0.0, kwargs_flatmask: dict = {})->vs.VideoNode:
-        """ changes: thsad=300, sigma=3, luma_over_texture=0 """
+    def digital (clip: vs.VideoNode, thsad: int = 300, tr: int = 2, sigma: float = 3, luma_mask_weaken: float = 0.75, luma_mask_thr: float = 0.196, chroma_denoise: float | tuple[float, str] = [1.0, "nlm"], precision: bool = True, chroma_masking: bool = False, show_mask: int = 0, luma_over_texture: float = 0.2, kwargs_flatmask: dict = {})->vs.VideoNode:
+        """ changes: thsad=300, sigma=3, luma_over_texture=0.2 """
         denoised = adenoise._adaptive_denoiser(clip, thsad, tr, sigma, luma_mask_weaken, luma_mask_thr, chroma_denoise, precision, chroma_masking, luma_over_texture, kwargs_flatmask, show_mask, is_digital=True)
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -422,7 +422,7 @@ def msaa2x(
     planes: PlanesT = 0,
     ref: Optional[vs.VideoNode] = None,
     mask: bool = False,
-    sigma: float = 2,
+    sigma: float = 3,
     thr: float = None,
     **kwargs
 ) -> vs.VideoNode:
@@ -453,7 +453,7 @@ def msaa2x(
     clip = depth(clip, 16, dither_type="none")
 
     if ref is None:
-        ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise=[(0 if (1 in planes or 2 in planes) else 1), "cbm3d"])
+        ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"])
             
     if len(planes) == 1:
         edgemask = advanced_edgemask(plane(ref, planes[0]), **kwargs)
