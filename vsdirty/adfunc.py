@@ -118,7 +118,6 @@ def mini_BM3D(
         **params
     )
 
-    num_planes = clip.format.num_planes
     if clip.format.color_family == vs.GRAY:
         return depth(_bm3d(clipS, accel, refS, **kwargs), clip.format.bits_per_sample) if refS is None else depth(_bm3d(clipS, accel, **kwargs), clip.format.bits_per_sample)
 
@@ -127,11 +126,10 @@ def mini_BM3D(
     planes = list(dict.fromkeys(int(p) for p in planes))
 
     if clip.format.color_family == vs.RGB:
-        filtered_planes = [
-            _bm3d(plane(clipS, p), accel, **kwargs) if p in planes else plane(clipS, p)
-            for p in range(num_planes)
-        ]
-        dclip = core.std.ShufflePlanes(filtered_planes, planes=[0, 0, 0], colorfamily=clip.format.color_family)
+        clipOPP = core.fmtc.matrix(clipS, fulls=True, fulld=True, coef=[1/3,1/3,1/3,0, 1/2,0,-1/2,0, 1/4,-1/2,1/4,0], col_fam=vs.YUV)
+        dclip = _bm3d(clipOPP, accel, refS, **kwargs) if refS is None else _bm3d(clipOPP, accel, **kwargs)
+        dclip = core.fmtc.matrix(dclip, fulls=True, fulld=True, coef=[1,1,2/3,0, 1,0,-4/3,0, 1,-1,2/3,0], col_fam=vs.RGB)
+        dclip = core.std.ShufflePlanes([dclip if planes == 0 else clipS, dclip if planes == 1 else clipS, dclip if planes == 2 else clipS], planes=[0, 1, 2], colorfamily=vs.RGB)
 
     elif clip.format.color_family == vs.YUV:
         y = plane(clipS, 0)
