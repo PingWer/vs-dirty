@@ -440,7 +440,7 @@ def msaa2x(
 
     :param clip:            Clip to process (YUV or Grayscale).
     :param planes:          Which planes to process. Defaults to Y.
-    :param ref:             Reference clip used to create the edgemask (should be the original not filtered clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
+    :param ref:             Reference clip used to create the edgemask (should be a denoised clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
     :param mask:            If True will return the mask used.
     :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
     :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
@@ -465,7 +465,7 @@ def msaa2x(
         ref = adenoise.digital(clip, sigma=sigma, precision=False, chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"])
             
     if len(planes) == 1:
-        edgemask = advanced_edgemask(plane(ref, planes[0]), **kwargs)
+        edgemask = advanced_edgemask(plane(ref, 0), **kwargs)
     else:
         masks = [
             advanced_edgemask(plane(ref, p), **kwargs) if p in planes else plane(ref, p).std.BlankClip()
