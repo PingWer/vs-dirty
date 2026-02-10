@@ -358,6 +358,7 @@ def hd_flatmask(
     edges_strength: float = 0.02,
     blur: float = 2,
     expand: int = 3,
+    fast: bool = True,
     **kwargs
 ) -> vs.VideoNode:
     """
@@ -412,9 +413,9 @@ def hd_flatmask(
             
         ref_y = depth(ref_y, 16)
         
-        clipd = mini_BM3D(luma, sigma=sigma1, ref=ref_y, radius=1, profile="FLATMASK", planes=0)
+        clipd = mini_BM3D(luma, sigma=sigma1, ref=ref_y, radius=1, profile="FLATMASK" if fast else "HIGH", planes=0)
     else:
-        clipd = mini_BM3D(luma, sigma=sigma1, radius=1, profile="FLATMASK", planes=0)
+        clipd = mini_BM3D(luma, sigma=sigma1, radius=1, profile="FLATMASK" if fast else "HIGH", planes=0)
 
     msrcpa = depth(unbloat_retinex(
         depth(clipd, 32), 
