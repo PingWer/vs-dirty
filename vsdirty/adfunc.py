@@ -428,11 +428,11 @@ def auto_deblock(
 
 def msaa2x(
     clip: vs.VideoNode,
-    planes: PlanesT = 0,
     ref: Optional[vs.VideoNode] = None,
     mask: bool = False,
     sigma: float = 3,
     thr: float = None,
+    planes: PlanesT = 0,
     **kwargs
 ) -> vs.VideoNode:
     """
