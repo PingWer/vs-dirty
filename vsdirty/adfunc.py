@@ -103,6 +103,12 @@ def mini_BM3D(
             "bm_range": [16, 16, 16, 16],
             "ps_range": [7, 8],
         },
+        "FLATMASK": {
+            "block_step": [3, 2, 3, 2],
+            "bm_range": [3, 3, 1, 1],
+            "ps_num" : 1,
+            "ps_range": [1, 2],
+        }
     }
 
     profile_u = str(profile).upper()
