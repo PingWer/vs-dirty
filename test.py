@@ -1,19 +1,39 @@
 import unittest
 from vstools import vs
 
+
 class Test(unittest.TestCase):
     def setUp(self):
         c = vs.core
-        self.video400 = c.std.BlankClip(width=1280, height=720, format=vs.GRAY8, length=100, color=64)
-        self.video420 = c.std.BlankClip(width=1280, height=720, format=vs.YUV420P8, length=100, color=[64, 64, 64])
-        self.video422 = c.std.BlankClip(width=1280, height=720, format=vs.YUV422P8, length=100, color=[64, 64, 64])
-        self.video444 = c.std.BlankClip(width=1280, height=720, format=vs.YUV444P8, length=100, color=[64, 64, 64])
-        self.videoRGB = c.std.BlankClip(width=1280, height=720, format=vs.RGB24, length=100, color=[64, 64, 64])
-        self.videos = [self.video400, self.video420, self.video422, self.video444, self.videoRGB]
-        self.videos = [v.noise.Add(5, 2, type=3, xsize=4, ysize=4, constant=False) for v in self.videos]    # add dynamic noise
+        self.video400 = c.std.BlankClip(
+            width=1280, height=720, format=vs.GRAY8, length=100, color=64
+        )
+        self.video420 = c.std.BlankClip(
+            width=1280, height=720, format=vs.YUV420P8, length=100, color=[64, 64, 64]
+        )
+        self.video422 = c.std.BlankClip(
+            width=1280, height=720, format=vs.YUV422P8, length=100, color=[64, 64, 64]
+        )
+        self.video444 = c.std.BlankClip(
+            width=1280, height=720, format=vs.YUV444P8, length=100, color=[64, 64, 64]
+        )
+        self.videoRGB = c.std.BlankClip(
+            width=1280, height=720, format=vs.RGB24, length=100, color=[64, 64, 64]
+        )
+        self.videos = [
+            self.video400,
+            self.video420,
+            self.video422,
+            self.video444,
+            self.videoRGB,
+        ]
+        self.videos = [
+            v.noise.Add(5, 2, type=3, xsize=4, ysize=4, constant=False)
+            for v in self.videos
+        ]  # add dynamic noise
 
     def test_mini_BM3D(self):
-        """ Test mini_BM3D with and without reference clip """
+        """Test mini_BM3D with and without reference clip"""
         from vsdirty.adfunc import mini_BM3D
 
         for video in self.videos:
@@ -31,7 +51,7 @@ class Test(unittest.TestCase):
                 mini_BM3D(video, sigma=5, ref=video, planes=[0], accel="CPU")
 
     def test_adenoise(self):
-        """ Test adenoise with all defaults """
+        """Test adenoise with all defaults"""
         from vsdirty.adfunc import adenoise
 
         videos = self.videos[0:4]  # RGB not supported
@@ -53,7 +73,7 @@ class Test(unittest.TestCase):
                 adenoise.default(video, chroma_denoise="artcnn")
 
     def test_auto_deblock(self):
-        """ Test auto_deblock """
+        """Test auto_deblock"""
         from vsdirty.adfunc import auto_deblock
 
         videos = self.videos[1:4]  # Grayscale and RGB not supported
@@ -69,7 +89,7 @@ class Test(unittest.TestCase):
                 auto_deblock(video, pre=True, planes=[0])
 
     def test_msaa2x(self):
-        """ Test msaa2x """
+        """Test msaa2x"""
         from vsdirty.adfunc import msaa2x
 
         videos = self.videos[0:4]
@@ -84,7 +104,7 @@ class Test(unittest.TestCase):
                 msaa2x(video, ref=video, planes=[0])
 
     def test_luma_masks(self):
-        """ Test luma-based masks """
+        """Test luma-based masks"""
         from vsdirty.admask import luma_mask, luma_mask_man, luma_mask_ping
 
         for video in self.videos:
@@ -96,7 +116,7 @@ class Test(unittest.TestCase):
                 luma_mask_ping(video)
 
     def test_edgemasks(self):
-        """ Test edgemasks """
+        """Test edgemasks"""
         from vsdirty.admask import advanced_edgemask
 
         videos = self.videos[0:4]
@@ -105,16 +125,16 @@ class Test(unittest.TestCase):
                 advanced_edgemask(video)
 
     def test_retinex(self):
-        """ Test retinex """
+        """Test retinex"""
         from vsdirty.admask import unbloat_retinex
 
         videos = self.videos[0]
         for video in videos:
             with self.subTest(video=video.format.name):
                 unbloat_retinex(video)
-        
+
     def test_hd_flatmask(self):
-        """ Test hd_flatmask """
+        """Test hd_flatmask"""
         from vsdirty.admask import hd_flatmask
 
         videos = self.videos[0:4]
@@ -122,5 +142,16 @@ class Test(unittest.TestCase):
             with self.subTest(video=video.format.name):
                 hd_flatmask(video)
 
-if __name__ == '__main__':
+    def test_bore(self):
+        """Test bore filter"""
+        from vsdirty.dirtyfixer import bore
+
+        videos = self.videos[0:4]
+        for video in videos:
+            with self.subTest(video=video.format.name):
+                bore(video)
+                bore(video, ythickness=(5, 5, 5, 5), uthickness=(2, 2, 2, 2))
+
+
+if __name__ == "__main__":
     unittest.main()

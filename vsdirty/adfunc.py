@@ -268,7 +268,7 @@ class adenoise:
                                 Accepted denoiser types: "nlm", "cbm3d", "artcnn". If not given, nlm is used.
     :param precision:           If True, a flat mask is created to enhance the denoise strenght on flat areas avoiding textured area (95% accuracy).
     :param fast:                If True, uses a 3x faster version of flatmask (85% accuracy). Default: True.
-    :param chroma_masking:      If True, enables specific chroma masking for U/V planes.
+    :param chroma_masking:      WIP If True, enables specific chroma masking for U/V planes.
     :param luma_over_texture:   Multiplier for the luma mask in precision mode. Lower value means more importance to textured areas, higher value means more importance to luma levels.
                                 Accepted values: 0.0-1.0
     :param kwargs_flatmask:     Additional arguments for flatmask creation.
