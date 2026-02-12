@@ -102,27 +102,27 @@ denoised = adenoise.scan16mm(clip)
 
 ## `bore`
 
-A powerful edge cleaner (dirty line fixer) that processes borders at their native resolution to avoid scaling artifacts.
+A powerful edge cleaner (dirty line fixer) that processes borders at their native resolution to avoid scaling artifacts. This is a wrapper of [OpusGang/bore](https://github.com/OpusGang/bore).
 
 **Parameters:**
 
 ```python
 def bore(
-  clip : vs.VideoNode,
-  ythickness: List[int] = None,
-  uthickness: List[int] = None,
-  vthickness: List[int] = None,
-  planes: PlanesT = 0,
-  singlePlane = True
+    clip: vs.VideoNode,
+    planes: PlanesT = 0,
+    ythickness: BordersT | Thickness | None = None,
+    uthickness: BordersT | Thickness | None = None,
+    vthickness: BordersT | Thickness | None = None,
+    singlePlane: bool = True,
 )
 ```
 
 - `clip`: Input clip (YUV or GRAY).
-- `ythickness`: Luma border thicknesses to process. [top, bottom, left, right].
-- `uthickness`: Chroma U border thicknesses to process. [top, bottom, left, right].
-- `vthickness`: Chroma V border thicknesses to process. [top, bottom, left, right]. If None, uses ythickness or uthickness.
+- `ythickness`: List or Tuple of luma border thicknesses to process. (top, bottom, left, right). 0 means no processing. Default: (1, 1, 1, 1).
+- `uthickness`: List or Tuple of chroma U border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or vthickness if is not None.
+- `vthickness`: List or Tuple of chroma V border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or uthickness if is not None.
 - `planes`: Plane(s) to process.
-- `singlePlane`: If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane works only on 444 clips.
+- `singlePlane`: If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane works only on YUV clips.
 - `return`: Processed clip with corrected borders, same format as input.
 
 **Usage:**
@@ -173,9 +173,9 @@ aa_clip = msaa2x(clip)
 Generates a high-quality edge mask by combining Retinex preprocessing with multiple edge detectors (Kirsch, Sobel) to capture faint and complex edges.
 
 ```python
-from vsdirty import admask
+from vsdirty import advanced_edgemask
 
-emask = admask.advanced_edgemask(clip, luma_scaling=10)
+emask = advanced_edgemask(clip, luma_scaling=10)
 ```
 
 ## `hd_flatmask`
@@ -183,9 +183,9 @@ emask = admask.advanced_edgemask(clip, luma_scaling=10)
 A specialized mask for flat areas, useful for protecting textures or targeting specific flat regions for filtering.
 
 ```python
-from vsdirty import admask
+from vsdirty import hd_flatmask
 
-flat_mask = admask.hd_flatmask(clip)
+flat_mask = hd_flatmask(clip)
 ```
 
 ## `diff_and_swap`
@@ -193,10 +193,10 @@ flat_mask = admask.hd_flatmask(clip)
 A utility to repair damaged frames in a "base" clip using a "correction" clip. It compares frames and swaps them if the difference exceeds a threshold.
 
 ```python
-from vsdirty import adutils
+from vsdirty import diff_and_swap
 
 # automated patching
-repaired, _ = adutils.diff_and_swap(correction_clip, base_clip, thr=30000)
+repaired, _ = diff_and_swap(correction_clip, base_clip, thr=30000)
 ```
 
 ## License
