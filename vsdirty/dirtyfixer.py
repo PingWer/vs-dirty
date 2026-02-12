@@ -1,5 +1,5 @@
 import vapoursynth as vs
-from typing import NamedTuple
+
 from vstools import PlanesT
 from vstools import depth
 from .adutils import plane
@@ -11,22 +11,15 @@ if not (hasattr(vs.core, "fmtc") and hasattr(vs.core, "bore")):
         "'fmtc' and 'libbore' are mandatory. Make sure the DLLs are present in the plugins folder."
     )
 
-type BordersT = tuple[int, int, int, int] | None
-
-
-class Thickness(NamedTuple):
-    top: int
-    bottom: int
-    left: int
-    right: int
+type Thickness = tuple[int, int, int, int]
 
 
 def bore(
     clip: vs.VideoNode,
     planes: PlanesT = 0,
-    ythickness: BordersT | Thickness | None = None,
-    uthickness: BordersT | Thickness | None = None,
-    vthickness: BordersT | Thickness | None = None,
+    ythickness: Thickness | None = None,
+    uthickness: Thickness | None = None,
+    vthickness: Thickness | None = None,
     singlePlane: bool = True,
 ) -> vs.VideoNode:
     """
@@ -40,9 +33,9 @@ def bore(
 
     :param clip:         Input clip (YUV or GRAY, RGB not supported).
     :param planes:       Which planes to process. Defaults to Y.
-    :param ythickness:   List or Tuple of luma border thicknesses to process. (top, bottom, left, right). 0 means no processing. Default: (1, 1, 1, 1).
-    :param uthickness:   List or Tuple of chroma U border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or vthickness if is not None.
-    :param vthickness:   List or Tuple of chroma V border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or uthickness if is not None.
+    :param ythickness:   Tuple of luma border thicknesses to process. (top, bottom, left, right). 0 means no processing. Default: (1, 1, 1, 1).
+    :param uthickness:   Tuple of chroma U border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or vthickness if is not None.
+    :param vthickness:   Tuple of chroma V border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or uthickness if is not None.
     :param singlePlane:  If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane cannot be used with GRAY clips.
 
     :return:             Processed clip with corrected borders, same format as input
@@ -54,35 +47,25 @@ def bore(
     if planes is None:
         raise ValueError("bore: planes cannot be None.")
 
-    def _parse_thickness(thick: BordersT | Thickness | None) -> Thickness:
-        """Parse input into Thickness namedtuple."""
+    def _parse_thickness(thick: Thickness | None) -> Thickness:
+        """Parse input into Thickness tuple."""
         if thick is None:
-            return Thickness(0, 0, 0, 0)
+            return (0, 0, 0, 0)
 
-        if isinstance(thick, Thickness):
-            return thick
-
-        if isinstance(thick, int):
-            return Thickness(thick, thick, thick, thick)
-
-        if hasattr(thick, "__len__"):
+        if isinstance(thick, tuple):
             t_len = len(thick)
             if t_len == 4:
-                return Thickness(*thick)
+                return thick
             else:
                 raise ValueError(
                     f"Thickness sequence must have exactly 4 elements (top, bottom, left, right), got {t_len}"
                 )
 
         raise ValueError(
-            f"Thickness must be int, (top, bottom, left, right) or Thickness, got {thick}"
+            f"Thickness must be (top, bottom, left, right), or None, got {type(thick)}"
         )
 
-    p_y = (
-        _parse_thickness(ythickness)
-        if ythickness is not None
-        else Thickness(1, 1, 1, 1)
-    )
+    p_y = _parse_thickness(ythickness) if ythickness is not None else (1, 1, 1, 1)
 
     if uthickness is None and vthickness is None:
         p_u = p_y
@@ -117,10 +100,10 @@ def bore(
 
                 p_bored = core.bore.SinglePlane(
                     p_float,
-                    top=thick.top,
-                    bottom=thick.bottom,
-                    left=thick.left,
-                    right=thick.right,
+                    top=thick[0],
+                    bottom=thick[1],
+                    left=thick[2],
+                    right=thick[3],
                     plane=0,
                 )
 
@@ -147,10 +130,10 @@ def bore(
                 depth(
                     core.bore.MultiPlane(
                         upclip,
-                        top=p_y.top,
-                        bottom=p_y.bottom,
-                        left=p_y.left,
-                        right=p_y.right,
+                        top=p_y[0],
+                        bottom=p_y[1],
+                        left=p_y[2],
+                        right=p_y[3],
                         plane=0,
                     ),
                     clip.format.bits_per_sample,
@@ -171,10 +154,10 @@ def bore(
                 depth(
                     core.bore.MultiPlane(
                         upclip,
-                        top=p_u.top,
-                        bottom=p_u.bottom,
-                        left=p_u.left,
-                        right=p_u.right,
+                        top=p_u[0],
+                        bottom=p_u[1],
+                        left=p_u[2],
+                        right=p_u[3],
                         plane=1,
                     ),
                     clip.format.bits_per_sample,
@@ -195,10 +178,10 @@ def bore(
                 depth(
                     core.bore.MultiPlane(
                         upclip,
-                        top=p_v.top,
-                        bottom=p_v.bottom,
-                        left=p_v.left,
-                        right=p_v.right,
+                        top=p_v[0],
+                        bottom=p_v[1],
+                        left=p_v[2],
+                        right=p_v[3],
                         plane=2,
                     ),
                     clip.format.bits_per_sample,

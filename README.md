@@ -110,17 +110,17 @@ A powerful edge cleaner (dirty line fixer) that processes borders at their nativ
 def bore(
     clip: vs.VideoNode,
     planes: PlanesT = 0,
-    ythickness: BordersT | Thickness | None = None,
-    uthickness: BordersT | Thickness | None = None,
-    vthickness: BordersT | Thickness | None = None,
+    ythickness: Thickness | None = None,
+    uthickness: Thickness | None = None,
+    vthickness: Thickness | None = None,
     singlePlane: bool = True,
 )
 ```
 
 - `clip`: Input clip (YUV or GRAY).
-- `ythickness`: List or Tuple of luma border thicknesses to process. (top, bottom, left, right). 0 means no processing. Default: (1, 1, 1, 1).
-- `uthickness`: List or Tuple of chroma U border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or vthickness if is not None.
-- `vthickness`: List or Tuple of chroma V border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or uthickness if is not None.
+- `ythickness`: Tuple of luma border thicknesses to process. (top, bottom, left, right). 0 means no processing. Default: (1, 1, 1, 1).
+- `uthickness`: Tuple of chroma U border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or vthickness if is not None.
+- `vthickness`: Tuple of chroma V border thicknesses to process. (top, bottom, left, right). 0 means no processing. if None, uses ythickness or uthickness if is not None.
 - `planes`: Plane(s) to process.
 - `singlePlane`: If True uses bore.SinglePlane, otherwise bore.MultiPlane. MultiPlane works only on YUV clips.
 - `return`: Processed clip with corrected borders, same format as input.
