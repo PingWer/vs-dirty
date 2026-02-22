@@ -10,8 +10,6 @@ readme = "README.md"
 authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]
 requires-python = ">=3.12"
 dependencies = [
-    "vapoursynth>=70",
-    "vstools",
     "vsjetpack==1.1.0",
 ]
 classifiers = [
@@ -21,7 +19,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/r74mi/vs-dirty"
+Homepage = "https://github.com/PingWer/vs-dirty"
 
 [tool.setuptools.packages.find]
 include = ["vsdirty*"]
