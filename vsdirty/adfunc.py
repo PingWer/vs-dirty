@@ -772,15 +772,15 @@ def msaa2x(
 
     clip = depth(clip, 16, dither_type="none")
 
-    if ref is None:
-        ref = adenoise.digital(
-            clip,
-            sigma=sigma,
-            precision=False,
-            chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"],
-        )
-
     if edgemask is None:
+        if ref is None:
+            ref = adenoise.digital(
+                clip,
+                sigma=sigma,
+                precision=False,
+                chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"],
+            )
+    
         if len(planes) == 1:
             edgemask = advanced_edgemask(plane(ref, 0), **kwargs)
         else:
