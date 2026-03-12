@@ -478,7 +478,7 @@ class adenoise:
         fast: bool = True,
         luma_mask_weaken: float = 0.9,
         luma_mask_thr: float = 0.196,
-        chroma_denoise: float | tuple[float, str] = [0.5, "nlm"],
+        chroma_denoise: float | str | tuple[float, str] = [0.5, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -514,7 +514,7 @@ class adenoise:
         fast: bool = True,
         luma_mask_weaken: float = 0.8,
         luma_mask_thr: float = 0.196,
-        chroma_denoise: float | tuple[float, str] = [0.7, "nlm"],
+        chroma_denoise: float | str | tuple[float, str] = [0.7, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -550,7 +550,7 @@ class adenoise:
         fast: bool = True,
         luma_mask_weaken: float = 0.75,
         luma_mask_thr: float = 0.196,
-        chroma_denoise: float | tuple[float, str] = [1.0, "nlm"],
+        chroma_denoise: float | str | tuple[float, str] = [1.0, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -585,7 +585,7 @@ class adenoise:
         fast: bool = False,
         luma_mask_weaken: float = 0.75,
         luma_mask_thr: float = 0.196,
-        chroma_denoise: float | tuple[float, str] = [1.5, "nlm"],
+        chroma_denoise: float | str | tuple[float, str] = [1.5, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -621,7 +621,7 @@ class adenoise:
         fast: bool = True,
         luma_mask_weaken: float = 0.75,
         luma_mask_thr: float = 0.196,
-        chroma_denoise: float | tuple[float, str] = [1.0, "nlm"],
+        chroma_denoise: float | str | tuple[float, str] = [1.0, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -658,7 +658,7 @@ class adenoise:
         fast: bool = True,
         luma_mask_weaken: float = 0.75,
         luma_mask_thr: float = 0.196,
-        chroma_denoise: float | tuple[float, str] = [1.0, "nlm"],
+        chroma_denoise: float | str | tuple[float, str] = [1.0, "nlm"],
         precision: bool = True,
         chroma_masking: bool = False,
         show_mask: int = 0,
@@ -739,6 +739,7 @@ def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
     mask: bool = False,
+    edgemask: Optional[vs.VideoNode] = None,
     sigma: float = 3,
     thr: float = None,
     planes: PlanesT = 0,
@@ -751,6 +752,7 @@ def msaa2x(
     :param planes:          Which planes to process. Defaults to Y.
     :param ref:             Reference clip used to create the edgemask (should be a denoised clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
     :param mask:            If True will return the mask used.
+    :param edgemask:        Pre-computed edgemask. If None, it will be computed internally.
     :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
     :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
     :param kwargs:          Accepts advanced_edgemask arguments.
@@ -778,18 +780,19 @@ def msaa2x(
             chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"],
         )
 
-    if len(planes) == 1:
-        edgemask = advanced_edgemask(plane(ref, 0), **kwargs)
-    else:
-        masks = [
-            advanced_edgemask(plane(ref, p), **kwargs)
-            if p in planes
-            else plane(ref, p).std.BlankClip()
-            for p in range(3)
-        ]
-        edgemask = core.std.ShufflePlanes(
-            masks, planes=[0, 0, 0], colorfamily=ref.format.color_family
-        )
+    if edgemask is None:
+        if len(planes) == 1:
+            edgemask = advanced_edgemask(plane(ref, 0), **kwargs)
+        else:
+            masks = [
+                advanced_edgemask(plane(ref, p), **kwargs)
+                if p in planes
+                else plane(ref, p).std.BlankClip()
+                for p in range(3)
+            ]
+            edgemask = core.std.ShufflePlanes(
+                masks, planes=[0, 0, 0], colorfamily=ref.format.color_family
+            )
 
     if thr is not None and thr != 0:
         edgemask = edgemask.std.Binarize(
