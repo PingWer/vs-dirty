@@ -742,6 +742,7 @@ def msaa2x(
     edgemask: Optional[vs.VideoNode] = None,
     sigma: float = 3,
     thr: float = None,
+    strength: float = None,
     planes: PlanesT = 0,
     **kwargs,
 ) -> vs.VideoNode:
@@ -755,6 +756,7 @@ def msaa2x(
     :param edgemask:        Pre-computed edgemask. If None, it will be computed internally.
     :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
     :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
+    :param strength:        Strength of the final merge between the original clip and the upscaled clip. 0-1 values accepted.
     :param kwargs:          Accepts advanced_edgemask arguments.
     """
     from vsscale import ArtCNN
@@ -820,5 +822,8 @@ def msaa2x(
             [downscaled, u, v], planes=[0, 0, 0], colorfamily=clip.format.color_family
         )
         aa = core.std.MaskedMerge(clip, all_downscaled, edgemask, planes=planes)
+
+    if strength is not None or strength != 0:
+        aa = core.std.Merge(aa, clip, weight=strength)
 
     return aa
