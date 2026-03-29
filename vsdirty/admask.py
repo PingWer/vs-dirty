@@ -398,7 +398,7 @@ def hd_flatmask(
     ref: Optional[vs.VideoNode] = None,
     sigma1: float = 3,
     retinex_sigma: list[float] = [50, 200, 350],
-    sigma2: float = 1,
+    sigma2: float = 1.5,
     sharpness: float = 0.8,
     edge_thr: float = 0.55,
     texture_strength: float = 2,
@@ -418,16 +418,16 @@ def hd_flatmask(
     :param ref:                 Optional reference clip for denoising.
     :param sigma1:              BM3D sigma for initial denoising. Default: 3.
     :param retinex_sigma:       Sigma values for Multi-Scale Retinex. Default: [50, 200, 350].
-    :param sigma2:              Nlmeans strength for post-Retinex denoising. Default: 1.
+    :param sigma2:              Nlmeans strength for post-Retinex denoising. Default: 1.5.
     :param sharpness:           CAS sharpening amount (0-1). Default: 0.8.
     :param edge_thr:            Threshold for edge combination logic (0-1). This allows to separate edges from texture. Default: 0.55.
     :param texture_strength:    Texture strength for mask (0-inf). Values above 1 decrese the strength of the texture in the mask, lower values increase it. The max value is theoretical infinite, but there is no gain after some point. Default: 0.8.
     :param edges_strength:      Edges strength for mask (0-1). Basic multiplier for edges strength. Default: 0.03.
-    :param blur:                Blur amount for mask (0-1). Default: 2.
-    :param expand:              Expand amount for mask (0-1). Higher value increases the size of the texture in the mask. Default: 3.
+    :param blur:                Gauss blur sigma for mask. Default: 2.
+    :param expand:              Expand amount for mask. Higher value expands the size of the texture in the mask. Default: 3.
     :param kwargs:              Additional arguments for Retinex.
 
-    :return:                    Edge mask (Gray clip) where dark values are texture and edges, bright values are flat areas.
+    :return:                    Edge mask (Gray clip) where bright values are texture and edges, dark values are flat areas.
     """
 
     from vstools import depth
@@ -485,7 +485,7 @@ def hd_flatmask(
         dither_type="none",
     )
 
-    msrcp = nl_means(msrcpa, h=sigma2, a=2)
+    msrcp = nl_means(msrcpa, h=sigma2, a=3)
 
     if sharpness > 0:
         msrcp = core.cas.CAS(msrcp, sharpness=sharpness, opt=0, planes=0)
