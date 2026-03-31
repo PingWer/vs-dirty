@@ -357,14 +357,7 @@ class adenoise:
             if show_mask == 2:
                 selected_mask = flatmask
 
-            if luma_over_texture > 1.0:
-                raise ValueError("luma_over_texture must be less than 1")
-            elif luma_over_texture < 0.0:
-                raise ValueError("luma_over_texture must be greater than 0")
-            final_mask = core.akarin.Expr(
-                [darken_luma_mask, flatmask],
-                f"x {luma_over_texture} * y {abs(luma_over_texture - 1)} * +",
-            )
+            final_mask = core.std.Merge(flatmask, darken_luma_mask, weight=luma_over_texture)
         else:
             final_mask = darken_luma_mask
 
