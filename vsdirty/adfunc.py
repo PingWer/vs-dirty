@@ -242,7 +242,7 @@ class adenoise:
     :param thsad:               Thsad for mc_degrain (luma denoise strength and chroma ref).
                                 Recommended values: 300-800
     :param tr:                  Temporal radius for temporal consistency across al the filter involved.
-                                Recommended values: 2-3 (1 means no temporal denoise).
+                                Recommended values: 2-3.
     :param sigma:               Sigma for BM3D (luma denoise strength).
                                 Recommended values: 1-5.
     :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger overall denoise.
