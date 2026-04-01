@@ -15,7 +15,7 @@ pip install vsdirty
 Or build from source:
 
 ```bash
-git clone https://github.com/r74mi/vs-dirty.git
+git clone https://github.com/PingWer/vs-dirty
 cd vs-dirty
 pip install .
 ```
