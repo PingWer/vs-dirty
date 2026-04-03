@@ -244,7 +244,7 @@ class adenoise:
     :param tr:                  Temporal radius for temporal consistency across al the filter involved.
                                 Recommended values: 2-3.
     :param sigma:               Sigma for BM3D (luma denoise strength).
-                                Recommended values: 1-5.
+                                Recommended values: 3-6.
     :param luma_mask_weaken:    Controls how much dark spots should be denoised. Lower values mean stronger overall denoise.
                                 Recommended values: 0.6-0.9
     :param luma_mask_thr:       Threshold that determines what is considered bright and what is dark in the luma mask.
@@ -783,7 +783,7 @@ def msaa2x(
     if mask:
         return edgemask
 
-    upscaled = ArtCNN.C4F32_DN().scale(clip, clip.width * 2, clip.height * 2)
+    upscaled = ArtCNN.C4F32_DN().supersample(clip, 2)
     downscaled = core.resize.Bicubic(upscaled, clip.width, clip.height)
     aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
 
