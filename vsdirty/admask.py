@@ -11,6 +11,16 @@ if not (
     )
 
 
+def _morpho_radius(clip: vs.VideoNode, radius: int, **kwargs) -> vs.VideoNode:
+    """Helper to dynamically switch between expand and inpand based on sign."""
+    from vsmasktools import Morpho, XxpandMode
+
+    if radius == 0:
+        return clip
+    op = Morpho.expand if radius > 0 else Morpho.inpand
+    return op(clip, sw=abs(radius), sh=abs(radius), mode=XxpandMode.ELLIPSE, **kwargs)
+
+
 def _soft_threshold(
     clip: vs.VideoNode, thr: float, steepness: float = 20.0
 ) -> vs.VideoNode:
@@ -293,7 +303,7 @@ def advanced_edgemask(
     :param kirsch_weight:       Weight for Kirsch edges in final blend (0-1). Default: 0.7.
     :param kirsch_thr:          Kirsch threshold. Default: 0.25.
     :param edge_thr:            Threshold for edge combination logic (0-1). Default: 0.02.
-    :param expand:              Expand the mask by a given number of pixels. Default: 0.
+    :param expand:              Expand or inpand the mask by a given number of pixels. Default: 0.
     :param kwargs:              Additional arguments for Retinex.
     :return:                    Edge mask (Gray clip).
     """
@@ -386,11 +396,7 @@ def advanced_edgemask(
         f"x y + {edge_thr_scaled} < x y + z {kirsch_weight} * + x y + ?",
     )
 
-    return (
-        mask
-        if expand == 0
-        else Morpho.expand(mask, mode=XxpandMode.ELLIPSE, sw=expand, sh=expand)
-    )
+    return _morpho_radius(mask, expand)
 
 
 def hd_flatmask(
@@ -424,7 +430,7 @@ def hd_flatmask(
     :param texture_strength:    Texture strength for mask (0-inf). Values above 1 decrese the strength of the texture in the mask, lower values increase it. The max value is theoretical infinite, but there is no gain after some point. Default: 0.8.
     :param edges_strength:      Edges strength for mask (0-1). Basic multiplier for edges strength. Default: 0.03.
     :param blur:                Gauss blur sigma for mask. Default: 2.
-    :param expand:              Expand amount for mask. Higher value expands the size of the texture in the mask. Default: 3.
+    :param expand:              Expand or inpand (idk why you'd want to do this) amount for mask. Higher value expands the size of the texture in the mask. Default: 3.
     :param kwargs:              Additional arguments for Retinex.
 
     :return:                    Edge mask (Gray clip) where bright values are texture and edges, dark values are flat areas.
@@ -521,9 +527,7 @@ def hd_flatmask(
 
     edges_expanded = Morpho.expand(edgescombo, mode=XxpandMode.ELLIPSE, sw=1, sh=1)
     kirco_diff = core.akarin.Expr([kirco, edges_expanded], "x y -")
-    kirco_expanded = Morpho.expand(
-        kirco_diff, mode=XxpandMode.ELLIPSE, sw=expand, sh=expand
-    )
+    kirco_expanded = _morpho_radius(kirco_diff, expand)
 
     edgescombo = core.akarin.Expr(
         edgescombo.std.Invert(),

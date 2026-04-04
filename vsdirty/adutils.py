@@ -1,5 +1,6 @@
 import vapoursynth as vs
 from typing import SupportsIndex, Optional, List, Tuple, Union
+from vstools import PlanesT
 
 
 def plane(clip: vs.VideoNode, index: SupportsIndex) -> vs.VideoNode:
@@ -224,3 +225,70 @@ def diff_and_swap(
         selected = None
 
     return merged, selected
+
+
+def smart_CAS(
+    clip: vs.VideoNode,
+    sharpness: float = 0.5,
+    strength: float = 0.5,
+    texture: bool = False,
+    mask: Union[vs.VideoNode, int, None] = None,
+    # character_masking: bool = False,
+    planes: PlanesT = 0,
+    show_mask: bool = False,
+    **kwargs,
+) -> vs.VideoNode:
+    """
+    Applies Contrast Adaptive Sharpening (CAS) with optional masking and strength control.
+
+    :param clip:         Input video clip.
+    :param sharpness:    Sharpening intensity (0.0 - 1.0). Default is 0.5.
+    :param strength:     Mixing factor to dilute the sharpening effect (0.0 - 1.0).
+                         0.0 means full CAS force, while 1.0 returns the original clip.
+                         Default is 0.5.
+    :param texture:      If True, uses hd_flatmask for masking. If False, uses advanced_edgemask.
+                         Ignored if a custom mask is provided. Default is False.
+    :param mask:         Custom mask for sharpening. If None, a mask is generated.
+                         The sharpened clip is applied where the mask is white (light).
+                         If set to 0 (int), returns the sharpened clip without any masking.
+    :param planes:       List of planes to process. Default is plane 0 (Luma).
+    :param show_mask:    If True, returns the mask instead of the sharpened clip.
+    :param kwargs:       Additional arguments passed to the mask generation functions.
+
+    :return:             Sharpened video clip with masking applied to detail areas (unless mask=0).
+    """
+    core = vs.core
+    from vsrgtools import gauss_blur
+
+    cassed = core.cas.CAS(clip, sharpness=sharpness, planes=planes, opt=0)
+
+    if strength != 0.0:
+        cassed = core.std.Merge(cassed, clip, weight=strength)
+
+    if isinstance(mask, vs.VideoNode):
+        if show_mask:
+            return mask
+        return core.std.MaskedMerge(clip, cassed, mask, planes=planes)
+    elif mask is None:
+        mask_expand = kwargs.pop("expand", -1)
+
+        if texture:
+            from .admask import hd_flatmask
+
+            mask = hd_flatmask(clip, expand=mask_expand, **kwargs)
+            mask = gauss_blur(mask, sigma=1, planes=planes)
+            if show_mask:
+                return mask
+            return core.std.MaskedMerge(clip, cassed, mask, planes=planes)
+        else:
+            from .admask import advanced_edgemask
+
+            mask = advanced_edgemask(clip, expand=mask_expand, **kwargs)
+            mask = gauss_blur(mask, sigma=1, planes=planes)
+            if show_mask:
+                return mask
+            return core.std.MaskedMerge(clip, cassed, mask, planes=planes)
+    elif isinstance(mask, int) and mask == 0:
+        return cassed
+    else:
+        raise vs.Error("smart_CAS: mask must be a VideoNode or None")
