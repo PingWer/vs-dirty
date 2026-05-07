@@ -318,7 +318,7 @@ class adenoise:
             selected_mask = darken_luma_mask
 
         # Degrain
-        if "is_digital" not in kwargs:
+        if "is_bm3d_only" not in kwargs:
             mvtools = MVTools(clip)
             vectors = mvtools.analyze(
                 blksize=16,
@@ -364,7 +364,10 @@ class adenoise:
         if show_mask == 3:
             selected_mask = final_mask
 
-        denoised = mini_BM3D(plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
+        if "is_digital" in kwargs:
+            denoised = mini_BM3D(plane(clip, 0), ref=plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
+        else:
+            denoised = mini_BM3D(plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
         y_denoised = core.std.MaskedMerge(
             denoised, plane(clip, 0), final_mask
         )  # denoise applied to darker areas
@@ -591,7 +594,7 @@ class adenoise:
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
         return denoised[0]
-
+    
     @staticmethod
     def digital(
         clip: vs.VideoNode,
@@ -624,6 +627,43 @@ class adenoise:
             kwargs_flatmask,
             show_mask,
             is_digital=True,
+        )
+        if show_mask in [1, 2, 3, 4, 5]:
+            return denoised
+        return denoised[0]
+
+    @staticmethod
+    def bm3d(
+        clip: vs.VideoNode,
+        thsad: int = 500,
+        tr: int = 2,
+        sigma: float = 3,
+        fast: bool = True,
+        luma_mask_weaken: float = 0.75,
+        luma_mask_thr: float = 0.196,
+        chroma_denoise: float | str | tuple[float, str] = [1.0, "nlm"],
+        precision: bool = True,
+        chroma_masking: bool = False,
+        show_mask: int = 0,
+        luma_over_texture: float = 0.2,
+        kwargs_flatmask: dict = {},
+    ) -> vs.VideoNode:
+        """changes: sigma=3, luma_over_texture=0.2"""
+        denoised = adenoise._adaptive_denoiser(
+            clip,
+            thsad,
+            tr,
+            sigma,
+            luma_mask_weaken,
+            luma_mask_thr,
+            chroma_denoise,
+            precision,
+            fast,
+            chroma_masking,
+            luma_over_texture,
+            kwargs_flatmask,
+            show_mask,
+            is_bm3d_only=True,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised

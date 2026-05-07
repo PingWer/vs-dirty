@@ -67,6 +67,8 @@ class Test(unittest.TestCase):
             with self.subTest(video=video.format.name):
                 adenoise.digital(video)
             with self.subTest(video=video.format.name):
+                adenoise.bm3d(video)
+            with self.subTest(video=video.format.name):
                 adenoise.default(video)
                 adenoise.default(video, chroma_masking=True, chroma_denoise=2.0)
                 adenoise.default(video, chroma_denoise=[1.0, "cbm3d"])
