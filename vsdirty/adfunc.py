@@ -1,7 +1,8 @@
 import vapoursynth as vs
 
-from typing import Optional
+from typing import Optional, Any
 from vstools import PlanesT
+from vsmlrt import BackendV2
 
 core = vs.core
 
@@ -284,6 +285,7 @@ class adenoise:
         luma_over_texture: float = 0.4,
         kwargs_flatmask: Optional[dict] = {},
         show_mask: int = 0,
+        backend: Optional[BackendV2] = None,
         **kwargs,
     ) -> tuple[vs.VideoNode, vs.VideoNode]:
 
@@ -397,7 +399,7 @@ class adenoise:
                 elif chroma_denoise[1] == "artcnn":
                     from vsscale import ArtCNN
 
-                    chroma_denoised = ArtCNN.R8F64_JPEG420().scale(clip)
+                    chroma_denoised = ArtCNN.R8F64_JPEG420(backend=backend).scale(clip)
                     weights = [
                         0,
                         chroma_denoise[0]
@@ -467,6 +469,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.4,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         """changes: thsad=200, sigma=2, luma_mask_weaken=0.9, chroma_strength=0.5"""
         denoised = adenoise._adaptive_denoiser(
@@ -483,6 +486,7 @@ class adenoise:
             luma_over_texture,
             kwargs_flatmask,
             show_mask,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -503,6 +507,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.4,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         """changes: thsad=400, sigma=4, luma_mask_weaken=0.8, chroma_strength=0.7"""
         denoised = adenoise._adaptive_denoiser(
@@ -519,6 +524,7 @@ class adenoise:
             luma_over_texture,
             kwargs_flatmask,
             show_mask,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -539,6 +545,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.4,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         denoised = adenoise._adaptive_denoiser(
             clip,
@@ -554,6 +561,7 @@ class adenoise:
             luma_over_texture,
             kwargs_flatmask,
             show_mask,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -574,6 +582,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.4,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         """changes: thsad=800, sigma=12, luma_over_texture=0.4, fast=False"""
         denoised = adenoise._adaptive_denoiser(
@@ -590,6 +599,7 @@ class adenoise:
             luma_over_texture,
             kwargs_flatmask,
             show_mask,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -610,6 +620,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.2,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         """changes: thsad=300, sigma=3, luma_over_texture=0.2"""
         denoised = adenoise._adaptive_denoiser(
@@ -627,6 +638,7 @@ class adenoise:
             kwargs_flatmask,
             show_mask,
             is_digital=True,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -647,6 +659,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.2,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         """changes: sigma=3, luma_over_texture=0.2"""
         denoised = adenoise._adaptive_denoiser(
@@ -664,6 +677,7 @@ class adenoise:
             kwargs_flatmask,
             show_mask,
             is_bm3d_only=True,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -684,6 +698,7 @@ class adenoise:
         show_mask: int = 0,
         luma_over_texture: float = 0.4,
         kwargs_flatmask: dict = {},
+        backend: Optional[BackendV2] = None,
     ) -> vs.VideoNode:
         """default profile"""
         denoised = adenoise._adaptive_denoiser(
@@ -700,6 +715,7 @@ class adenoise:
             luma_over_texture,
             kwargs_flatmask,
             show_mask,
+            backend=backend,
         )
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
@@ -758,21 +774,22 @@ def auto_deblock(
 def msaa2x(
     clip: vs.VideoNode,
     ref: Optional[vs.VideoNode] = None,
-    mask: bool = False,
+    show_mask: bool = False,
     edgemask: Optional[vs.VideoNode] = None,
     sigma: float = 3,
     thr: float = None,
     strength: float = None,
     planes: PlanesT = 0,
+    backend: Optional[BackendV2] = None,
     **kwargs,
-) -> vs.VideoNode:
+) -> vs.VideoNode | tuple[vs.VideoNode, vs.VideoNode]:
     """
     Upscales only the edges with AI (ArtCNN DN) and downscales them.
 
     :param clip:            Clip to process (YUV or Grayscale).
     :param planes:          Which planes to process. Defaults to Y.
     :param ref:             Reference clip used to create the edgemask (should be a denoised clip). If None, clip will be used and will be denoised with adenoise.digital to prevent edge detail loss, but remove grain and noise.
-    :param mask:            If True will return the mask used.
+    :param show_mask:       If True, returns a tuple containing the processed clip and the mask used.
     :param edgemask:        Pre-computed edgemask. If None, it will be computed internally.
     :param sigma:           Sigma used for edge fixing during antialiasing (remove dirty spots and blocking) only if ref is None.
     :param thr:             Threshold used for Binarize the clip, only 0-1 value area allowed. If None, no Binarize will be applied.
@@ -801,6 +818,7 @@ def msaa2x(
                 sigma=sigma,
                 precision=False,
                 chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"],
+                backend=backend,
             )
     
         if len(planes) == 1:
@@ -820,10 +838,8 @@ def msaa2x(
         edgemask = edgemask.std.Binarize(
             threshold=scale_binary_value(edgemask, thr, return_int=True)
         )
-    if mask:
-        return edgemask
 
-    upscaled = ArtCNN.C4F32_DN().supersample(clip, 2)
+    upscaled = ArtCNN.C4F32_DN(backend=backend).supersample(clip, 2)
     downscaled = core.resize.Bicubic(upscaled, clip.width, clip.height)
     aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
 
@@ -832,7 +848,7 @@ def msaa2x(
         aa = core.std.ShufflePlanes(
             [aa, lefted, lefted], planes=[0, 1, 2], colorfamily=clip.format.color_family
         )
-        aa = ArtCNN.R8F64_Chroma().scale(aa)
+        aa = ArtCNN.R8F64_Chroma(backend=backend).scale(aa)
         chroma_downscaled = core.resize.Bicubic(aa, clip.width / 2, clip.height / 2)
         u = plane(chroma_downscaled, 1)
         v = plane(chroma_downscaled, 2)
@@ -845,5 +861,8 @@ def msaa2x(
 
     if strength is not None or strength != 0:
         aa = core.std.Merge(aa, clip, weight=strength)
+
+    if show_mask:
+        return aa, edgemask
 
     return aa

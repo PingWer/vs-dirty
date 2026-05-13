@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vsdirty"
-version = "0.3.0"
+version = "0.4.0"
 description = "VapourSynth wrappers for denoising, masking and edge fixing"
 readme = "README.md"
 authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]
 requires-python = ">=3.12"
 dependencies = [
-    "vsjetpack", #Just use latest version
+    "vsjetpack",
+    "vapoursynth==73", # For 0.4.0 we need to force r73, we will support APIv4 in the next update
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

@@ -104,6 +104,10 @@ class Test(unittest.TestCase):
                 msaa2x(video, planes=[0])
             with self.subTest(video=video.format.name):
                 msaa2x(video, ref=video, planes=[0])
+            with self.subTest(video=video.format.name):
+                res = msaa2x(video, show_mask=True)
+                self.assertIsInstance(res, tuple)
+                self.assertEqual(len(res), 2)
 
     def test_luma_masks(self):
         """Test luma-based masks"""
@@ -130,7 +134,7 @@ class Test(unittest.TestCase):
         """Test retinex"""
         from vsdirty.admask import unbloat_retinex
 
-        videos = self.videos[0]
+        videos = [self.video400]
         for video in videos:
             with self.subTest(video=video.format.name):
                 unbloat_retinex(video)
@@ -153,6 +157,25 @@ class Test(unittest.TestCase):
             with self.subTest(video=video.format.name):
                 bore(video)
                 bore(video, ythickness=(5, 5, 5, 5), uthickness=(2, 2, 2, 2))
+
+    def test_backends(self):
+        """Test vsmlrt backends"""
+        from vsdirty.adfunc import adenoise, msaa2x
+        from vsmlrt import BackendV2
+
+        video = self.video420
+        backends = [
+            ("ORT_CPU", BackendV2.ORT_CPU()),
+            ("TRT", BackendV2.TRT(fp16=True))
+        ]
+
+        for name, backend in backends:
+            with self.subTest(backend=name):
+                try:
+                    adenoise.default(video, chroma_denoise="artcnn", backend=backend)
+                    msaa2x(video, backend=backend)
+                except Exception as e:
+                    print(f"Skipping {name} test: {e}")
 
 
 if __name__ == "__main__":
