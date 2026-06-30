@@ -161,13 +161,10 @@ class Test(unittest.TestCase):
     def test_backends(self):
         """Test vsmlrt backends"""
         from vsdirty.adfunc import adenoise, msaa2x
-        from vsmlrt import BackendV2
+        from vsscale import Backend
 
         video = self.video420
-        backends = [
-            ("ORT_CPU", BackendV2.ORT_CPU()),
-            ("TRT", BackendV2.TRT(fp16=True))
-        ]
+        backends = [("ORT_CPU", Backend.ORT_CPU()), ("TRT", Backend.TRT(fp16=True))]
 
         for name, backend in backends:
             with self.subTest(backend=name):

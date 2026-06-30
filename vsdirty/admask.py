@@ -3,13 +3,6 @@ from typing import Optional
 
 core = vs.core
 
-if not (
-    hasattr(vs.core, "cas") and hasattr(vs.core, "fmtc") and hasattr(vs.core, "akarin")
-):
-    raise ImportError(
-        "'cas', 'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder."
-    )
-
 
 def _morpho_radius(clip: vs.VideoNode, radius: int, **kwargs) -> vs.VideoNode:
     """Helper to dynamically switch between expand and inpand based on sign."""
@@ -309,7 +302,6 @@ def advanced_edgemask(
     """
     from vstools import depth
     from vsdenoise import nl_means
-    from vsmasktools import Kirsch, Morpho, XxpandMode
     from .adfunc import mini_BM3D
     from .adutils import scale_binary_value, plane
 
@@ -358,41 +350,41 @@ def advanced_edgemask(
 
     preSobel = core.akarin.Expr(
         [
-            plane(msrcp, 0).std.Sobel(),
-            plane(clipd, 0).std.Sobel(),
+            core.edgemasks.Sobel(plane(msrcp, 0)),
+            core.edgemasks.Sobel(plane(clipd, 0)),
         ],
         "x y max",
     )
 
     prePrewitt = core.akarin.Expr(
         [
-            plane(msrcp, 0).std.Prewitt(),
-            plane(clipd, 0).std.Prewitt(),
+            core.edgemasks.Prewitt(plane(msrcp, 0)),
+            core.edgemasks.Prewitt(plane(clipd, 0)),
         ],
         "x y max",
     )
 
     edges = core.akarin.Expr([preSobel, prePrewitt], "x y +")
 
-    tcanny = core.akarin.Expr(
+    kroon = core.akarin.Expr(
         [
-            core.tcanny.TCanny(plane(msrcp, 0), mode=1, sigma=0),
-            core.tcanny.TCanny(plane(clipd, 0), mode=1, sigma=0),
+            core.edgemasks.Kroon(plane(msrcp, 0)),
+            core.edgemasks.Kroon(plane(clipd, 0)),
         ],
         "x y max",
     )
 
     kirco = core.akarin.Expr(
         [
-            Kirsch.edgemask(plane(msrcp, 0), clamp=False, lthr=kirsch_thr),
-            Kirsch.edgemask(plane(clipd, 0), clamp=False, lthr=kirsch_thr),
+            core.edgemasks.Kirsch(plane(msrcp, 0)),
+            core.edgemasks.Kirsch(plane(clipd, 0)),
         ],
         "x y max",
     )
 
     edge_thr_scaled = scale_binary_value(edges, edge_thr, return_int=True)
     mask = core.akarin.Expr(
-        [edges, tcanny, kirco],
+        [edges, kroon, kirco],
         f"x y + {edge_thr_scaled} < x y + z {kirsch_weight} * + x y + ?",
     )
 
@@ -438,7 +430,7 @@ def hd_flatmask(
 
     from vstools import depth
     from vsdenoise import nl_means
-    from vsmasktools import Morpho, Kirsch, XxpandMode
+    from vsmasktools import Morpho, XxpandMode
     from .adfunc import mini_BM3D
     from .adutils import scale_binary_value, plane
     from vsrgtools import gauss_blur
@@ -499,10 +491,10 @@ def hd_flatmask(
 
     edges = core.akarin.Expr(
         [
-            msrcp.std.Sobel(),
-            clipd.std.Sobel(),
-            msrcp.std.Prewitt(),
-            clipd.std.Prewitt(),
+            core.edgemasks.Sobel(msrcp),
+            core.edgemasks.Sobel(clipd),
+            core.edgemasks.Prewitt(msrcp),
+            core.edgemasks.Prewitt(clipd),
         ],
         "x y max z a max +",
     )
@@ -510,20 +502,20 @@ def hd_flatmask(
     if edge_thr > 0:
         edges = _soft_threshold(edges, edge_thr, 10)
 
-    tcanny = core.akarin.Expr(
+    kroon = core.akarin.Expr(
         [
-            core.tcanny.TCanny(msrcp, mode=1, sigma=0),
-            core.tcanny.TCanny(clipd, mode=1, sigma=0),
+            core.edgemasks.Kroon(msrcp),
+            core.edgemasks.Kroon(clipd),
         ],
         "x y max",
     )
-    tcanny = core.std.Minimum(tcanny)
+    kroon = core.std.Minimum(kroon)
 
-    edgescombo = Morpho.inflate(
-        core.akarin.Expr([edges, tcanny], "x y +"), iterations=2
+    edgescombo = Morpho.inflate(core.akarin.Expr([edges, kroon], "x y +"), iterations=2)
+
+    kirco = core.akarin.Expr(
+        [core.edgemasks.Kirsch(msrcp), core.edgemasks.Kirsch(clipd)], "x y +"
     )
-
-    kirco = core.akarin.Expr([Kirsch.edgemask(msrcp), Kirsch.edgemask(clipd)], "x y +")
 
     edges_expanded = Morpho.expand(edgescombo, mode=XxpandMode.ELLIPSE, sw=1, sh=1)
     kirco_diff = core.akarin.Expr([kirco, edges_expanded], "x y -")

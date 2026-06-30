@@ -1,15 +1,10 @@
 import vapoursynth as vs
 
-from typing import Optional, Any
+from typing import Optional
 from vstools import PlanesT
-from vsmlrt import BackendV2
+from vsscale import Backend as BackendV2
 
 core = vs.core
-
-if not (hasattr(core, "fmtc") and hasattr(core, "akarin")):
-    raise ImportError(
-        "'fmtc' and 'akarin' are mandatory. Make sure the DLLs are present in the plugins folder."
-    )
 
 
 def mini_BM3D(
@@ -150,7 +145,20 @@ def mini_BM3D(
                 refS,
                 fulls=True,
                 fulld=True,
-                coef=[1 / 3, 1 / 3, 1 / 3, 0, 1 / 2, 0, -1 / 2, 0, 1 / 4, -1 / 2, 1 / 4, 0],
+                coef=[
+                    1 / 3,
+                    1 / 3,
+                    1 / 3,
+                    0,
+                    1 / 2,
+                    0,
+                    -1 / 2,
+                    0,
+                    1 / 4,
+                    -1 / 2,
+                    1 / 4,
+                    0,
+                ],
                 col_fam=vs.YUV,
             )
         else:
@@ -359,7 +367,9 @@ class adenoise:
             if show_mask == 2:
                 selected_mask = flatmask
 
-            final_mask = core.std.Merge(flatmask, darken_luma_mask, weight=luma_over_texture)
+            final_mask = core.std.Merge(
+                flatmask, darken_luma_mask, weight=luma_over_texture
+            )
         else:
             final_mask = darken_luma_mask
 
@@ -367,9 +377,17 @@ class adenoise:
             selected_mask = final_mask
 
         if "is_digital" in kwargs:
-            denoised = mini_BM3D(plane(clip, 0), ref=plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
+            denoised = mini_BM3D(
+                plane(clip, 0),
+                ref=plane(degrain, 0),
+                sigma=sigma,
+                radius=tr,
+                profile="HIGH",
+            )
         else:
-            denoised = mini_BM3D(plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH")
+            denoised = mini_BM3D(
+                plane(degrain, 0), sigma=sigma, radius=tr, profile="HIGH"
+            )
         y_denoised = core.std.MaskedMerge(
             denoised, plane(clip, 0), final_mask
         )  # denoise applied to darker areas
@@ -399,7 +417,17 @@ class adenoise:
                 elif chroma_denoise[1] == "artcnn":
                     from vsscale import ArtCNN
 
-                    chroma_denoised = ArtCNN.R8F64_JPEG420(backend=backend).scale(clip)
+                    chroma_denoised = depth(
+                        ArtCNN.R8F64_JPEG420(backend=backend).scale(depth(clip, 32)),
+                        clip.format.bits_per_sample,
+                    )
+                    chroma_denoised = chroma_denoised.resize.Bilinear(
+                        format=clip.format.id
+                    )
+                    chroma_denoised = core.std.ShufflePlanes(
+                        [clip, chroma_denoised], planes=[0, 1, 2], colorfamily=vs.YUV
+                    )
+
                     weights = [
                         0,
                         chroma_denoise[0]
@@ -604,7 +632,7 @@ class adenoise:
         if show_mask in [1, 2, 3, 4, 5]:
             return denoised
         return denoised[0]
-    
+
     @staticmethod
     def digital(
         clip: vs.VideoNode,
@@ -820,7 +848,7 @@ def msaa2x(
                 chroma_denoise=[(0 if (1 in planes or 2 in planes) else 2), "cbm3d"],
                 backend=backend,
             )
-    
+
         if len(planes) == 1:
             edgemask = advanced_edgemask(plane(ref, 0), **kwargs)
         else:
@@ -839,7 +867,11 @@ def msaa2x(
             threshold=scale_binary_value(edgemask, thr, return_int=True)
         )
 
-    upscaled = ArtCNN.C4F32_DN(backend=backend).supersample(clip, 2)
+    clip_f32 = depth(clip, 32)
+    upscaled = depth(
+        ArtCNN.C4F32_DN(backend=backend).supersample(clip_f32, 2),
+        clip.format.bits_per_sample,
+    )
     downscaled = core.resize.Bicubic(upscaled, clip.width, clip.height)
     aa = core.std.MaskedMerge(clip, downscaled, edgemask, planes=0)
 
@@ -848,7 +880,10 @@ def msaa2x(
         aa = core.std.ShufflePlanes(
             [aa, lefted, lefted], planes=[0, 1, 2], colorfamily=clip.format.color_family
         )
-        aa = ArtCNN.R8F64_Chroma(backend=backend).scale(aa)
+        aa = depth(
+            ArtCNN.R8F64_Chroma(backend=backend).scale(depth(aa, 32)),
+            clip.format.bits_per_sample,
+        )
         chroma_downscaled = core.resize.Bicubic(aa, clip.width / 2, clip.height / 2)
         u = plane(chroma_downscaled, 1)
         v = plane(chroma_downscaled, 2)

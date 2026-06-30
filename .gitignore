@@ -17,3 +17,5 @@ dfttest2.py
 vsmlrt.py
 retinex_gpu.py
 *.onnx
+/build
+/vsdirty.egg-info

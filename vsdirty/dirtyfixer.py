@@ -6,11 +6,6 @@ from .adutils import plane
 
 core = vs.core
 
-if not (hasattr(vs.core, "fmtc") and hasattr(vs.core, "bore")):
-    raise ImportError(
-        "'fmtc' and 'libbore' are mandatory. Make sure the DLLs are present in the plugins folder."
-    )
-
 type Thickness = tuple[int, int, int, int]
 
 

@@ -4,14 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vsdirty"
-version = "0.4.0"
+version = "0.5.0"
 description = "VapourSynth wrappers for denoising, masking and edge fixing"
 readme = "README.md"
 authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]
 requires-python = ">=3.12"
 dependencies = [
     "vsjetpack",
-    "vapoursynth==73", # For 0.4.0 we need to force r73, we will support APIv4 in the next update
+    "vapoursynth-cas",
+    "vapoursynth-edgemasks",
+    "vapoursynth-bm3d>=10.0",
+    "vapoursynth-bm3dcpu>=2.16.4 ; (platform_machine == 'x86_64' or platform_machine == 'AMD64') and (platform_system == 'Linux' or platform_system == 'Windows')",
+    "vapoursynth-bm3dmetal>=4.0.0 ; platform_system == 'Darwin'",
+    "dfttest2[gcc]>=10 ; platform_machine != 'x86_64' and platform_machine != 'AMD64'",
+    "dfttest2[cpu]>=10 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
+    "vapoursynth-mvtools>=26",
+    "vapoursynth-nlm-ispc>=3",
+    "vapoursynth-deblock>=8.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -19,8 +28,41 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.optional-dependencies]
+cl = ["vsjetpack[cl]"]
+nvidia = ["vsjetpack[nvidia]"]
+amd = ["vsjetpack[amd]"]
+test = [
+    "pytest",
+    "vsnoise"
+]
+
 [project.urls]
 Homepage = "https://github.com/PingWer/vs-dirty"
 
 [tool.setuptools.packages.find]
 include = ["vsdirty*"]
+
+[tool.uv.sources]
+tensorrt-cu13-bindings = [
+    { index = "vs-wheels", marker = "python_version == '3.14'" },
+]
+tensorrt-cu13-libs = { index = "nvidia" }
+tensorrt-rtx-cu13-bindings = [
+    { index = "vs-wheels", marker = "python_version == '3.14'" },
+]
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com/"
+explicit = true
+
+[[tool.uv.index]]
+name = "vs-wheels"
+url = "https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple"
+explicit = true
+
+[tool.vsscale.onnx.download]
+provider = ['ArtCNN']
+latest = true
+

@@ -12,28 +12,44 @@ You can install `vsdirty` via pip:
 pip install vsdirty
 ```
 
+If you want to enable GPU acceleration for neural networks, install the package with the appropriate extra based on your hardware:
+
+* **NVIDIA (TensorRT):**
+  ```bash
+  pip install vsdirty[nvidia]
+  ```
+* **AMD (DirectML / ORT):**
+  ```bash
+  pip install vsdirty[amd]
+  ```
+* **OpenCL (Generic):**
+  ```bash
+  pip install vsdirty[cl]
+  ```
+
 Or build from source:
 
 ```bash
 git clone https://github.com/PingWer/vs-dirty
 cd vs-dirty
-pip install .
+pip install .[nvidia] # or .[amd], .[cl]
 ```
 
 ## Dependencies
 
-This package relies on several external VapourSynth plugins. Ensure these are installed and available in your VapourSynth plugins folder.
+This package relies on several external VapourSynth plugins. Most of them are automatically downloaded via pip, but ensure they are available in your VapourSynth environment:
 
-| Plugin | URL |
+| Plugin | Used For |
 | :--- | :--- |
-| **fmtc** | [GitLab](https://gitlab.com/EleonoreMizo/fmtconv/) |
-| **akarin** | [GitHub](https://github.com/AkarinVS/vapoursynth-plugin) |
-| **cas** | [GitHub](https://github.com/HomeOfVapourSynthEvolution/VapourSynth-CAS) |
-| **bore** | [GitHub](https://github.com/OpusGang/bore) |
-| **mvtools** | [GitHub](https://github.com/dubhater/vapoursynth-mvtools) |
-| **BM3DCuda** | [GitHub](https://github.com/WolframRhodium/VapourSynth-BM3DCUDA) |
-| **nlm-cuda** | [GitHub](https://github.com/AmusementClub/vs-nlm-cuda) |
-| **vsmlrt** | [GitHub](https://github.com/AmusementClub/vs-mlrt) |
+| **vapoursynth-edgemasks** | High-performance convolution masks (`Kroon`, `Sobel`, `Kirsch`, `Prewitt`) |
+| **vapoursynth-cas** | Contrast Adaptive Sharpening |
+| **vapoursynth-bm3d** | High-quality block-matching denoising |
+| **vapoursynth-mvtools** | Motion interpolation and analysis |
+| **vapoursynth-nlm-ispc** | Non-local means denoising |
+| **vapoursynth-akarin** | Fast mathematical expression evaluation (`Expr`) |
+| **libbore** | Enhancing edge contours (`dirtyfixer.bore`) |
+
+> **Note:** Currently, **libbore** is not available via pip. You will need to download and install it manually from its [GitHub repository](https://github.com/OpusGang/bore).
 
 ## License
 
