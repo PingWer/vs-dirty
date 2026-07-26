@@ -14,7 +14,7 @@ def mini_BM3D(
     accel: Optional[str] = None,
     ref: Optional[vs.VideoNode] = None,
     dither: Optional[str] = "error_diffusion",
-    fast: Optional[bool] = False,
+    fast_fused: Optional[bool] = True,
     **kwargs,
 ) -> vs.VideoNode:
     """
@@ -23,11 +23,11 @@ def mini_BM3D(
     :param clip:            Clip to process (32bit, if not will be internally converted in 32bit).
     :param planes:          Which planes to process. Defaults to all planes.
     :param profile:         Precision. Accepted values: "FAST", "LC", "HIGH".
-    :param accel:           Choose the hardware acceleration. Accepted values: "cuda_rtc", "cuda", "hip", "cpu", "auto".
+    :param accel:           Choose the hardware acceleration. Accepted values: "cuda", "hip", "cpu", "auto".
     :param ref:             Reference clip for BM3D (32bit, if not will be internally converted in 32bit).
     :param dither:          Dithering method for the output clip. If None, no dithering is applied.
-    :param fast:            Use CPU+GPU, adds overhead.
-    :param kwargs:          Accepts BM3DCUDA arguments, https://github.com/WolframRhodium/VapourSynth-BM3DCUDA.
+    :param fast_fused:      Runs the collaborative filter and the temporal aggregation as one kernel chain, increases VRAM usage.
+    :param kwargs:          Accepts vszipcu arguments, https://github.com/dnjulek/vapoursynth-zipcu.
     :return:                Denoised clip.
     """
     from vstools import depth
@@ -53,28 +53,32 @@ def mini_BM3D(
     ) -> vs.VideoNode:
         accel_u = accel.upper() if accel is not None else "AUTO"
 
-        if accel_u not in ("AUTO", "CUDA_RTC", "CUDA", "HIP", "CPU"):
+        if accel_u not in ("AUTO", "CL", "CUDA", "HIP", "CPU"):
             raise ValueError(f"Accel unknown: {accel}")
 
-        if accel_u in ("AUTO", "CUDA_RTC"):
+        if accel_u in ("AUTO", "CUDA"):
             try:
-                return core.bm3dcuda_rtc.BM3Dv2(clip, ref, **kwargs)
+                if profile in ["HIGH", "LC"]:
+                    kwargs["fast_fused"] = False
+                return core.vszipcu.BM3Dv2(clip, ref, **kwargs)
             except Exception:
+                kwargs.pop("fast_fused", None)
                 try:
                     return core.bm3dhip.BM3Dv2(clip, ref, **kwargs)
                 except Exception:
-                    kwargs.pop("fast", None)
                     kwargs.pop("ps_range", kwargs.get("ps_range")[0])
                     try:
                         return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
                     except Exception:
                         return core.bm3dneon.BM3Dv2(clip, ref, **kwargs)
-        elif accel_u == "CUDA":
-            return core.bm3dcuda.BM3Dv2(clip, ref, **kwargs)
+        elif accel_u == "CL":
+            kwargs.pop("fast_fused", None)
+            return core.vszipcl.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "HIP":
+            kwargs.pop("fast_fused", None)
             return core.bm3dhip.BM3Dv2(clip, ref, **kwargs)
         elif accel_u == "CPU":
-            kwargs.pop("fast", None)
+            kwargs.pop("fast_fused", None)
             kwargs.pop("ps_range", kwargs.get("ps_range")[0])
             try:
                 return core.bm3dcpu.BM3Dv2(clip, ref, **kwargs)
@@ -119,7 +123,7 @@ def mini_BM3D(
 
     params = profiles[profile_u]
 
-    kwargs = dict(kwargs, fast=fast, **params)
+    kwargs = dict(kwargs, fast_fused=fast_fused, **params)
 
     if clip.format.color_family == vs.GRAY:
         return (
