@@ -50,6 +50,28 @@ class Test(unittest.TestCase):
                 mini_BM3D(video, sigma=5, ref=video, accel="CPU")
                 mini_BM3D(video, sigma=5, ref=video, planes=[0], accel="CPU")
 
+    def test_mini_NLM(self):
+        """Test mini_NLM with and without reference clip"""
+        from vsdirty.adfunc import mini_NLM
+
+        for video in self.videos:
+            with self.subTest(video=video.format.name):
+                mini_NLM(video, h=5)
+                mini_NLM(video, h=5, planes=[0])
+                mini_NLM(video, h=5, planes=[1, 2])
+            with self.subTest(video=video.format.name):
+                mini_NLM(video, h=5, accel="CL")
+                mini_NLM(video, h=5, planes=[0], accel="CL")
+                mini_NLM(video, h=5, planes=[1, 2], accel="CL")
+            with self.subTest(video=video.format.name):
+                mini_NLM(video, h=5, ref=video)
+                mini_NLM(video, h=5, ref=video, planes=[0])
+                mini_NLM(video, h=5, ref=video, planes=[1, 2])
+            with self.subTest(video=video.format.name):
+                mini_NLM(video, h=5, ref=video, accel="CL")
+                mini_NLM(video, h=5, ref=video, planes=[0], accel="CL")
+                mini_NLM(video, h=5, ref=video, planes=[1, 2], accel="CL")
+
     def test_adenoise(self):
         """Test adenoise with all defaults"""
         from vsdirty.adfunc import adenoise
@@ -89,6 +111,9 @@ class Test(unittest.TestCase):
                 auto_deblock(video, planes=[1])
             with self.subTest(video=video.format.name):
                 auto_deblock(video, pre=True, planes=[0])
+            with self.subTest(video=video.format.name):
+                auto_deblock(video, accel="cuda")
+                auto_deblock(video, accel="opencl")
 
     def test_msaa2x(self):
         """Test msaa2x"""

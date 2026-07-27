@@ -6,6 +6,108 @@ from vsscale import Backend as BackendV2
 
 core = vs.core
 
+#TODO: GESTIONE DEI CANALI FATTA BENE CON PLANES, DATO CHE YUV È SOLO PER 4:4:4.
+def mini_NLM(
+    clip: vs.VideoNode,
+    planes: PlanesT = [0, 1, 2],
+    tr: int = 1,
+    accel: Optional[str] = None,
+    ref: Optional[vs.VideoNode] = None,
+    dither: Optional[str] = "error_diffusion",
+    **kwargs,
+) -> vs.VideoNode:
+    """
+    NLM mini wrapper.
+
+    :param clip:            Clip to process (32bit, if not will be internally converted in 32bit).
+    :param planes:          Which planes to process. Defaults to all planes.
+    :param tr:              Temporal radius.
+    :param accel:           Choose the acceleration. Accepted values: "cuda", "cl", "auto".
+    :param ref:             Reference clip for NLM (32bit, if not will be internally converted in 32bit).
+    :param dither:          Dithering method for the output clip. If None, no dithering is applied.
+    :param kwargs:          Accepts vszip arguments.
+    :return:                Denoised clip.
+    """
+    from vstools import depth
+    from .adutils import plane
+
+    if isinstance(planes, int):
+        planes = [planes]
+    planes = list(dict.fromkeys(int(p) for p in planes))
+
+    clipS = depth(clip, 32, dither_type="none")
+    
+    if ref is not None:
+        refS = depth(ref, 32, dither_type="none")
+    else:
+        refS = None
+
+    def _nlm(
+        clip: vs.VideoNode, 
+        accel: Optional[str] = "AUTO", 
+        rclip: Optional[vs.VideoNode] = None,
+        channels: Optional[str] = "auto",
+        **kwargs
+        ) -> vs.VideoNode:
+        accel_u = accel.upper() if accel is not None else "AUTO"
+
+        if accel_u not in ("AUTO", "CL", "CUDA"):
+            raise ValueError(f"Accel unknown: {accel}")
+
+        if accel_u in ("AUTO", "CUDA"):
+            try:
+                clip = core.vszipcu.NLMeans(clip, d=tr, rclip=rclip, channels=channels, **kwargs)
+            except Exception:
+                print("mini_NLM: FALLBACK TO CL ACCELERATION")
+                clip = core.vszipcl.NLMeans(clip, d=tr, rclip=rclip, channels=channels, **kwargs)
+        elif accel_u == "CL":
+            clip = core.vszipcl.NLMeans(clip, d=tr, rclip=rclip, channels=channels, **kwargs)
+
+        return clip
+
+    if len(planes) == 1 or clip.format.color_family == vs.GRAY:
+        if planes[0] not in range(clip.format.num_planes):
+            planes = [0]
+        dclip = _nlm(plane(clipS, planes[0]), accel, rclip=plane(refS, planes[0]) if refS is not None else None, **kwargs)
+        dclip = core.std.ShufflePlanes(
+            [dclip if p == planes[0] else plane(clipS, p) for p in range(clip.format.num_planes)],
+            planes=[0] * clip.format.num_planes,
+            colorfamily=clip.format.color_family
+        )
+    elif len(planes) == 2:
+        if clip.format.color_family == vs.RGB:
+            dclip1 = _nlm(plane(clipS, 0), accel, rclip=plane(refS, 0) if refS is not None else None, channels="Y", **kwargs)
+            dclip2 = _nlm(plane(clipS, 1), accel, rclip=plane(refS, 1) if refS is not None else None, channels="Y", **kwargs)
+            dclip = core.std.ShufflePlanes(
+                [dclip1 if p == 0 else dclip2 if p == 1 else plane(clipS, p) for p in range(clip.format.num_planes)],
+                planes=[0] * clip.format.num_planes,
+                colorfamily=clip.format.color_family
+            )
+        else:
+            dclip = _nlm(clipS, accel, rclip=refS, channels="UV", **kwargs)
+            dclip = core.std.ShufflePlanes(
+                [dclip if p in planes else plane(clipS, p) for p in range(clip.format.num_planes)],
+                planes=[0] * clip.format.num_planes,
+                colorfamily=clip.format.color_family
+            )
+    else:
+        if clip.format.subsampling_h == 1 and clip.format.subsampling_w == 1:
+            dclipY = _nlm(clipS, accel, rclip=refS, channels="Y", **kwargs)
+            dclipUV = _nlm(clipS, accel, rclip=refS, channels="UV", **kwargs)
+            dclip = core.std.ShufflePlanes(
+                [dclipY if p == 0 else dclipUV if p in [1, 2] else plane(clipS, p) for p in range(clip.format.num_planes)],
+                planes=[0] * clip.format.num_planes,
+                colorfamily=clip.format.color_family
+            )
+        else:
+            dclip = _nlm(clipS, accel, rclip=refS, **kwargs)
+
+    return depth(
+        dclip,
+        clip.format.bits_per_sample,
+        dither_type=dither if dither is not None else "none",
+    )
+
 
 def mini_BM3D(
     clip: vs.VideoNode,
@@ -762,6 +864,7 @@ def auto_deblock(
     tbsize: int = 1,
     luma_mask_strength: float = 0.9,
     pre: bool = False,
+    accel: Optional[str] = None,
     mask_type: int = 0,
 ) -> vs.VideoNode:
     """
@@ -773,6 +876,7 @@ def auto_deblock(
     :param tbsize:              Length of the temporal dimension (i.e. number of frames).
     :param luma_mask_strength:  Mask strength multiplier. Lower values mean stronger overall deblock.
     :param pre:                 If True, applies a preliminary deblocking with vsdenoise.deblock_qed.
+    :param accel:               GPU acceleration method, Accepted values are "cuda" or "opencl".
     :param mask_type:           Mask type to use.
     """
 
@@ -789,7 +893,17 @@ def auto_deblock(
     if pre:
         clip = deblock_qed(clip, planes=planes)
 
-    deblock = DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
+    if accel is not None:
+        if accel.lower() == "cuda":
+            deblock = core.vszipcu.DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
+        elif accel.lower() == "opencl":
+            deblock = core.vszipcl.DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
+        else:
+            raise ValueError(
+                f"AutoDeblock: Invalid accel value '{accel}', accepted values are 'cuda' or 'opencl'."
+            )
+    else:
+        deblock = DFTTest(clip, sigma=sigma, tbsize=tbsize, planes=planes)
 
     if mask_type == 0:
         lumamask = luma_mask(clip)
