@@ -81,7 +81,7 @@ def mini_NLM(
             )
     else:
         if planes == [0, 1, 2]:
-            if clip.format.subsampling_h == 1 and clip.format.subsampling_w == 1:
+            if clip.format.subsampling_w == 1:
                 dclipY = _nlm(clipS, accel, rclip=refS, channels="Y", **kwargs)
                 dclipUV = _nlm(clipS, accel, rclip=refS, channels="UV", **kwargs)
                 dclip = core.std.ShufflePlanes([dclipY, dclipUV, dclipUV], planes=[0, 0, 0], colorfamily=clip.format.color_family)
