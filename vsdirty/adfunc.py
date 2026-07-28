@@ -80,24 +80,24 @@ def mini_NLM(
                 colorfamily=clip.format.color_family
             )
     else:
-        if clip.format.subsampling_h == 1 and clip.format.subsampling_w == 1:
-            if planes == [0, 1, 2]:
+        if planes == [0, 1, 2]:
+            if clip.format.subsampling_h == 1 and clip.format.subsampling_w == 1:
                 dclipY = _nlm(clipS, accel, rclip=refS, channels="Y", **kwargs)
                 dclipUV = _nlm(clipS, accel, rclip=refS, channels="UV", **kwargs)
                 dclip = core.std.ShufflePlanes([dclipY, dclipUV, dclipUV], planes=[0, 0, 0], colorfamily=clip.format.color_family)
-            elif planes == [1, 2]:
-                dclip = _nlm(clipS, accel, rclip=refS, channels="UV", **kwargs)
             else:
-                dclip = core.std.ShufflePlanes(
-                    [
-                        _nlm(plane(clipS, p), accel, rclip=plane(refS, p) if refS is not None else None, **kwargs) if p in planes else plane(clipS, p)
-                        for p in range(clip.format.num_planes)
-                    ],
-                    planes=[0] * clip.format.num_planes,
-                    colorfamily=clip.format.color_family 
-                )
+                dclip = _nlm(clipS, accel, rclip=refS, **kwargs)
+        elif planes == [1, 2]:
+            dclip = _nlm(clipS, accel, rclip=refS, channels="UV", **kwargs)
         else:
-            dclip = _nlm(clipS, accel, rclip=refS, **kwargs)
+            dclip = core.std.ShufflePlanes(
+                [
+                    _nlm(plane(clipS, p), accel, rclip=plane(refS, p) if refS is not None else None, **kwargs) if p in planes else plane(clipS, p)
+                    for p in range(clip.format.num_planes)
+                ],
+                planes=[0] * clip.format.num_planes,
+                colorfamily=clip.format.color_family
+            )
 
     return depth(
         dclip,
