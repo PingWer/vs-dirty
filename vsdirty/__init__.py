@@ -6,3 +6,5 @@ from .adfunc import *
 from .admask import *
 from .adutils import *
 from .dirtyfixer import *
+from .mini_nlm import *
+from .mini_bm3d import *

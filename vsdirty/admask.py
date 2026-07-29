@@ -302,7 +302,7 @@ def advanced_edgemask(
     """
     from vstools import depth
     from vsdenoise import nl_means
-    from .adfunc import mini_BM3D
+    from .mini_bm3d import mini_BM3D
     from .adutils import scale_binary_value, plane
 
     core = vs.core
@@ -431,7 +431,7 @@ def hd_flatmask(
     from vstools import depth
     from vsdenoise import nl_means
     from vsmasktools import Morpho, XxpandMode
-    from .adfunc import mini_BM3D
+    from .mini_bm3d import mini_BM3D
     from .adutils import scale_binary_value, plane
     from vsrgtools import gauss_blur
 
