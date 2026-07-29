@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vsdirty"
-version = "0.5.0"
+version = "0.6.0"
 description = "VapourSynth wrappers for denoising, masking and edge fixing"
 readme = "README.md"
 authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]
@@ -16,12 +16,12 @@ dependencies = [
     "vapoursynth-bm3d>=10.0",
     "vapoursynth-bm3dcpu>=2.16.4 ; (platform_machine == 'x86_64' or platform_machine == 'AMD64') and (platform_system == 'Linux' or platform_system == 'Windows')",
     "vapoursynth-vszipcl",
-    "vapoursynth-vszipcu",
     "dfttest2[gcc]>=10 ; platform_machine != 'x86_64' and platform_machine != 'AMD64'",
     "dfttest2[cpu]>=10 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
     "vapoursynth-mvtools>=26",
     "vapoursynth-nlm-ispc>=3",
     "vapoursynth-deblock>=8.0",
+    "vapoursynth-akarin",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,9 +29,14 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+#in futuro rimuovere dipendenza da vsjetpack
+
 [project.optional-dependencies]
 cl = ["vsjetpack[cl]"]
-nvidia = ["vsjetpack[nvidia]"]
+nvidia = [
+    "vsjetpack[nvidia]",
+    "vapoursynth-vszipcu"
+]
 amd = ["vsjetpack[amd]"]
 test = [
     "pytest",

@@ -43,11 +43,14 @@ This package relies on several external VapourSynth plugins. Most of them are au
 | :--- | :--- |
 | **vapoursynth-edgemasks** | High-performance convolution masks (`Kroon`, `Sobel`, `Kirsch`, `Prewitt`) |
 | **vapoursynth-cas** | Contrast Adaptive Sharpening |
-| **vapoursynth-bm3d** | High-quality block-matching denoising |
 | **vapoursynth-mvtools** | Motion interpolation and analysis |
-| **vapoursynth-nlm-ispc** | Non-local means denoising |
+| **vapoursynth-vszipcu** | Primary NLM and BM3D implementation (CUDA) |
+| **vapoursynth-vszipcl** | Primary NLM and BM3D implementation (OpenCL) |
+| **vapoursynth-bm3d** | BM3D implementation fallback (CUDA / HIP) |
+| **vapoursynth-bm3dcpu** | BM3D implementation fallback (CPU) |
+| **vapoursynth-nlm-ispc** | NLM implementation fallback (CPU) |
 | **vapoursynth-akarin** | Fast mathematical expression evaluation (`Expr`) |
-| **libbore** | Enhancing edge contours (`dirtyfixer.bore`) |
+| **libbore** | Fix frame edges (`dirtyfixer.bore`) |
 
 > **Note:** Currently, **libbore** is not available via pip. You will need to download and install it manually from its [GitHub repository](https://github.com/OpusGang/bore).
 
