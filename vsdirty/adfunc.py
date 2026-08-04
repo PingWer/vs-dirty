@@ -80,8 +80,6 @@ class adenoise:
             nl_means,
             MVTools,
             SearchMode,
-            MotionMode,
-            SADMode,
         )
         from .admask import luma_mask_ping, luma_mask_man, hd_flatmask
         from .adutils import plane
@@ -109,11 +107,11 @@ class adenoise:
             vectors = mvtools.analyze(
                 blksize=16,
                 tr=tr,
-                overlap=8,
+                overlap_div=2,
                 lsad=300,
                 search=SearchMode.UMH,
-                truemotion=MotionMode.SAD,
-                dct=SADMode.MIXED_SATD_DCT,
+                mvlambda=0,
+                satd=True
             )
             mfilter = mini_BM3D(
                 clip, sigma=sigma * 1.25, radius=tr, profile="LC", planes=0
