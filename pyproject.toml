@@ -4,12 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vsdirty"
-version = "0.6.0"
+version = "0.6.1"
 description = "VapourSynth wrappers for denoising, masking and edge fixing"
 readme = "README.md"
 authors = [{ name = "PingWer" }, { name = "Mhanz3500" }]
 requires-python = ">=3.12"
 dependencies = [
+    "vapoursynth<=79",
+    "vapoursynth-bore",
     "vsjetpack",
     "vapoursynth-cas",
     "vapoursynth-edgemasks",

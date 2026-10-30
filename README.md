@@ -50,9 +50,8 @@ This package relies on several external VapourSynth plugins. Most of them are au
 | **vapoursynth-bm3dcpu** | BM3D implementation fallback (CPU) |
 | **vapoursynth-nlm-ispc** | NLM implementation fallback (CPU) |
 | **vapoursynth-akarin** | Fast mathematical expression evaluation (`Expr`) |
-| **libbore** | Fix frame edges (`dirtyfixer.bore`) |
+| **vapoursynth-bore** | Fix frame edges (`dirtyfixer.bore`) |
 
-> **Note:** Currently, **libbore** is not available via pip. You will need to download and install it manually from its [GitHub repository](https://github.com/OpusGang/bore).
 
 ## License
 
